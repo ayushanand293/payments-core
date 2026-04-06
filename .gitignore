@@ -205,3 +205,19 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# Node / Vite (dashboard)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.vite/
+
+# Local environment variants (keep .env.example committed)
+.env.*
+!.env.example
+
+# OS / editor artifacts
+.DS_Store
+.idea/
