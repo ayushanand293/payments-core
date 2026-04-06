@@ -7,6 +7,7 @@ Create Date: 2026-04-06 00:00:00.000000
 
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy.dialects import postgresql
 
 
 revision = "0001_initial"
@@ -15,10 +16,10 @@ branch_labels = None
 depends_on = None
 
 
-account_type = sa.Enum("USER", "ESCROW", "MERCHANT", name="account_type")
-transaction_type = sa.Enum("TRANSFER", "DEPOSIT", name="transaction_type")
-transaction_status = sa.Enum("POSTED", "FAILED", name="transaction_status")
-ledger_entry_direction = sa.Enum("DEBIT", "CREDIT", name="ledger_entry_direction")
+account_type = postgresql.ENUM("USER", "ESCROW", "MERCHANT", name="account_type", create_type=False)
+transaction_type = postgresql.ENUM("TRANSFER", "DEPOSIT", name="transaction_type", create_type=False)
+transaction_status = postgresql.ENUM("POSTED", "FAILED", name="transaction_status", create_type=False)
+ledger_entry_direction = postgresql.ENUM("DEBIT", "CREDIT", name="ledger_entry_direction", create_type=False)
 
 
 def upgrade() -> None:
