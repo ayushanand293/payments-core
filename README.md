@@ -18,7 +18,7 @@ This milestone ships:
 
 1. Copy `.env.example` to `.env` if you want to override defaults.
 2. Start the stack with `docker compose -f infra/docker-compose.yml up --build`.
-3. Open the dashboard at `http://localhost:5173` and the API at `http://localhost:8000`.
+3. Open the dashboard at `http://localhost:5174` and the API at `http://localhost:18000`.
 
 ## Key docs
 

@@ -13,7 +13,7 @@ class Settings(BaseSettings):
     redis_url: str = Field(default="redis://localhost:6379/0")
     demo_secret: str = Field(default="change-me")
     auto_seed: bool = True
-    cors_origins: list[str] = Field(default_factory=lambda: ["http://localhost:5173"])
+    cors_origins: list[str] = Field(default_factory=lambda: ["http://localhost:5173", "http://localhost:5174"])
 
 
 @lru_cache(maxsize=1)
