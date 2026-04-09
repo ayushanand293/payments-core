@@ -1,5 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { getTransaction, postTransfer, type AccountSummary, type TransactionDetail, type TransactionSummary } from "../api/client";
+import { toUserMessage } from "../api/errors";
+import { Badge, statusVariant } from "../components/ui/Badge";
+import { Button } from "../components/ui/Button";
+import { Card } from "../components/ui/Card";
+import { Input } from "../components/ui/Input";
+import { Notice } from "../components/ui/Notice";
+import { Select } from "../components/ui/Select";
+import { Table, type TableColumn } from "../components/ui/Table";
 
 type Props = {
   transactions: TransactionSummary[];
@@ -19,6 +27,8 @@ export function TransactionsPage({ transactions, accounts, refresh }: Props) {
   const [amountMinor, setAmountMinor] = useState<string>("1000");
   const [description, setDescription] = useState<string>("Dashboard transfer");
   const [submitMessage, setSubmitMessage] = useState<string | null>(null);
+  const [sortKey, setSortKey] = useState<"created_at" | "type" | "status">("created_at");
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -61,7 +71,7 @@ export function TransactionsPage({ transactions, accounts, refresh }: Props) {
       setSelectedTransactionId(transactionId);
       setDetail(await getTransaction(transactionId));
     } catch (exception) {
-      setError(exception instanceof Error ? exception.message : "Unable to load transaction detail");
+      setError(toUserMessage(exception, "Unable to load transaction detail"));
     } finally {
       setLoading(false);
     }
@@ -112,112 +122,128 @@ export function TransactionsPage({ transactions, accounts, refresh }: Props) {
       setSelectedTransactionId(tx.id);
       setDetail(tx);
     } catch (exception) {
-      setSubmitMessage(exception instanceof Error ? exception.message : "Transfer failed");
+      setSubmitMessage(toUserMessage(exception, "Transfer failed"));
     } finally {
       setSubmitting(false);
     }
   }
 
-  return (
-    <section className="page-stack">
-      <div className="panel">
-        <div className="panel-header">
-          <h3>Create transfer</h3>
-          <span>Post a transaction between any two accounts</span>
-        </div>
-        <div className="account-form">
-          <label>
-            <span>Source account</span>
-            <select value={fromAccountId} onChange={(event) => setFromAccountId(event.target.value)}>
-              <option value="">Select source</option>
-              {accounts.map((account) => (
-                <option key={account.id} value={account.id}>
-                  {account.name} ({account.currency_code})
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            <span>Destination account</span>
-            <select value={toAccountId} onChange={(event) => setToAccountId(event.target.value)}>
-              <option value="">Select destination</option>
-              {accounts.map((account) => (
-                <option key={account.id} value={account.id}>
-                  {account.name} ({account.currency_code})
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            <span>Amount (minor units)</span>
-            <input value={amountMinor} onChange={(event) => setAmountMinor(event.target.value)} placeholder="1000" />
-          </label>
-          <label>
-            <span>Description</span>
-            <input value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Dashboard transfer" />
-          </label>
-          <button className="primary-button" type="button" onClick={() => void submitTransfer()} disabled={submitting || accounts.length < 2}>
-            {submitting ? "Posting..." : "Post transfer"}
-          </button>
-        </div>
-        {submitMessage ? <div className="alert-card soft">{submitMessage}</div> : null}
-      </div>
+  const sortedTransactions = useMemo(() => {
+    const next = [...transactions];
+    next.sort((a, b) => {
+      let delta = 0;
+      if (sortKey === "type") delta = a.type.localeCompare(b.type);
+      if (sortKey === "status") delta = a.status.localeCompare(b.status);
+      if (sortKey === "created_at") delta = String(a.created_at).localeCompare(String(b.created_at));
+      return sortDirection === "asc" ? delta : -delta;
+    });
+    return next;
+  }, [sortDirection, sortKey, transactions]);
 
-      <div className="panel split-layout">
-        <section>
-          <div className="panel-header">
-            <h3>Transactions</h3>
-            <span>Click a row for the ledger view</span>
-          </div>
-          <div className="table-card">
-            {transactions.map((transaction) => (
-              <button key={transaction.id} type="button" className={transaction.id === selectedTransactionId ? "table-row active" : "table-row"} onClick={() => void loadDetail(transaction.id)}>
-                <div>
-                  <strong>{transaction.description ?? transaction.type}</strong>
-                  <span>{transaction.currency_code} · {transaction.status}</span>
-                </div>
-                <div className={transaction.balanced ? "badge success" : "badge warning"}>{transaction.balanced ? "Balanced ✓" : "Check"}</div>
-              </button>
+  const columns: TableColumn<TransactionSummary>[] = [
+    {
+      key: "id",
+      header: "Tx",
+      render: (row) => (
+        <button type="button" className="ui-button ui-button--ghost" onClick={() => void loadDetail(row.id)}>
+          {row.id.slice(0, 8)}
+        </button>
+      ),
+    },
+    { key: "type", header: "Type", sortable: true, render: (row) => row.type },
+    { key: "status", header: "Status", sortable: true, render: (row) => <Badge variant={statusVariant(row.status)}>{row.status}</Badge> },
+    { key: "currency", header: "Currency", render: (row) => row.currency_code },
+    { key: "balanced", header: "Balanced", render: (row) => <Badge variant={row.balanced ? "success" : "warning"}>{row.balanced ? "Yes" : "No"}</Badge> },
+    { key: "created_at", header: "Created", sortable: true, render: (row) => new Date(row.created_at).toLocaleString() },
+  ];
+
+  function onSort(key: string) {
+    if (key !== "created_at" && key !== "type" && key !== "status") {
+      return;
+    }
+    if (sortKey === key) {
+      setSortDirection((prev) => (prev === "asc" ? "desc" : "asc"));
+    } else {
+      setSortKey(key);
+      setSortDirection("asc");
+    }
+  }
+
+  return (
+    <section style={{ display: "grid", gap: "var(--space-4)" }}>
+      {submitMessage ? <Notice variant="success">{submitMessage}</Notice> : null}
+
+      <Card title="Create transfer" subtitle="Post a transaction between any two accounts">
+        <div className="ui-form-grid">
+          <Select label="Source account" value={fromAccountId} onChange={(event) => setFromAccountId(event.target.value)}>
+            <option value="">Select source</option>
+            {accounts.map((account) => (
+              <option key={account.id} value={account.id}>{account.name} ({account.currency_code})</option>
             ))}
-          </div>
+          </Select>
+          <Select label="Destination account" value={toAccountId} onChange={(event) => setToAccountId(event.target.value)}>
+            <option value="">Select destination</option>
+            {accounts.map((account) => (
+              <option key={account.id} value={account.id}>{account.name} ({account.currency_code})</option>
+            ))}
+          </Select>
+          <Input label="Amount (minor units)" value={amountMinor} onChange={(event) => setAmountMinor(event.target.value)} placeholder="1000" />
+          <Input label="Description" value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Dashboard transfer" />
+          <Button variant="primary" type="button" onClick={() => void submitTransfer()} disabled={accounts.length < 2} loading={submitting}>
+            Post transfer
+          </Button>
+        </div>
+      </Card>
+
+      <div className="ui-grid-2">
+        <section>
+          <Card title="Transactions" subtitle="Sortable table; click Tx id for detail">
+            <Table
+              columns={columns}
+              rows={sortedTransactions}
+              rowKey={(row) => row.id}
+              emptyState="No transactions yet."
+              onSort={onSort}
+              sortKey={sortKey}
+              sortDirection={sortDirection}
+            />
+          </Card>
         </section>
 
         <section>
-          <div className="panel-header">
-            <h3>Transaction detail</h3>
-            <span>{loading ? "Loading..." : selectedTransaction?.id ?? "Select a transaction"}</span>
-          </div>
-          {error ? <div className="alert-card">{error}</div> : null}
+          <Card title="Transaction detail" subtitle={loading ? "Loading..." : selectedTransaction?.id ?? "Select a transaction"}>
+          {error ? <Notice variant="error">{error}</Notice> : null}
           {detail ? (
-            <div className="statement-card">
-              <div className="statement-summary">
+            <div style={{ display: "grid", gap: "var(--space-3)" }}>
+              <div style={{ display: "grid", gap: "var(--space-2)" }}>
                 <strong>{detail.description ?? detail.type}</strong>
-                <span>{detail.currency_code} · {detail.status}</span>
-                <span className={detailBalanced ? "badge success" : "badge warning"}>{detailBalanced ? "Balanced" : "Unbalanced"}</span>
-                <span>
+                <div className="ui-subtitle">{detail.currency_code} · {detail.status}</div>
+                <Badge variant={detailBalanced ? "success" : "warning"}>{detailBalanced ? "Balanced" : "Unbalanced"}</Badge>
+                <div className="ui-subtitle">
                   Debit: {formatMinor.format(detail.total_debit_minor ?? 0)} · Credit: {formatMinor.format(detail.total_credit_minor ?? 0)}
-                </span>
+                </div>
               </div>
-              <div className="mini-table">
+              <div style={{ display: "grid", gap: "var(--space-2)" }}>
                 {detail.ledger_entries.map((entry) => (
-                  <div key={entry.id} className="mini-row">
+                  <div key={entry.id} style={{ display: "flex", justifyContent: "space-between", border: "1px solid var(--border)", borderRadius: "var(--radius-md)", padding: "var(--space-3)" }}>
                     <div>
                       <strong>{entry.direction}</strong>
-                      <span>{new Date(entry.created_at).toLocaleString()}</span>
+                      <div className="ui-subtitle">{new Date(entry.created_at).toLocaleString()}</div>
                     </div>
-                    <div className="mono-number">{formatMinor.format(entry.amount_minor)}</div>
+                    <div>{formatMinor.format(entry.amount_minor)}</div>
                   </div>
                 ))}
               </div>
             </div>
           ) : (
-            <div className="empty-state">
+            <div>
               <p>Select a transaction to inspect the ledger entries.</p>
-              <button className="ghost-button" type="button" onClick={() => void refresh()}>
+              <Button variant="ghost" type="button" onClick={() => void refresh()}>
                 Reload transactions
-              </button>
+              </Button>
             </div>
           )}
+          </Card>
         </section>
       </div>
     </section>

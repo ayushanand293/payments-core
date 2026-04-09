@@ -1,14 +1,32 @@
+import { ApiError, parseApiError } from "./errors";
+import type {
+  AccountStatement,
+  AccountSummary,
+  CurrencySummary,
+  DemoStats,
+  DlqEventSummary,
+  HoldSummary,
+  ReconcileReport,
+  TransactionDetail,
+  TransactionSummary,
+  WebhookEventSummary,
+} from "./types";
+
+export type {
+  AccountStatement,
+  AccountSummary,
+  CurrencySummary,
+  DemoStats,
+  DlqEventSummary,
+  HoldSummary,
+  ReconcileReport,
+  TransactionDetail,
+  TransactionSummary,
+  WebhookEventSummary,
+};
+
 const API_BASE = import.meta.env.VITE_API_URL ?? "http://localhost:18000";
 const DEMO_SECRET = import.meta.env.VITE_DEMO_SECRET;
-
-function demoSecretHeaders(): Record<string, string> {
-  if (!DEMO_SECRET) {
-    throw new Error("Demo secret is not configured. Set VITE_DEMO_SECRET for demo actions.");
-  }
-  return {
-    "X-DEMO-SECRET": DEMO_SECRET,
-  };
-}
 
 type TransferPayload = {
   from_account_id: string;
@@ -38,6 +56,13 @@ type WebhookGatewayPayload = {
   payload: Record<string, unknown>;
 };
 
+function demoSecretHeaders(): Record<string, string> {
+  if (!DEMO_SECRET) {
+    throw new ApiError("Demo secret is not configured. Set VITE_DEMO_SECRET for demo actions.", 400, "DEMO_SECRET_MISSING");
+  }
+  return { "X-DEMO-SECRET": DEMO_SECRET };
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`, {
     ...init,
@@ -48,129 +73,11 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   });
 
   if (!response.ok) {
-    const message = await response.text();
-    throw new Error(message || `Request failed with status ${response.status}`);
+    throw await parseApiError(response);
   }
 
   return (await response.json()) as T;
 }
-
-export type AccountSummary = {
-  id: string;
-  name: string;
-  currency_code: string;
-  type: string;
-  created_at?: string | null;
-  posted_balance_minor: number;
-  held_balance_minor: number;
-  available_balance_minor: number;
-};
-
-export type CurrencySummary = {
-  code: string;
-  minor_unit: number;
-};
-
-export type LedgerEntry = {
-  id: string;
-  tx_id: string;
-  account_id: string;
-  currency_code: string;
-  direction: "DEBIT" | "CREDIT";
-  amount_minor: number;
-  created_at: string;
-};
-
-export type TransactionSummary = {
-  id: string;
-  type: string;
-  status: string;
-  currency_code: string;
-  idempotency_key: string;
-  description?: string | null;
-  created_at: string;
-  balanced?: boolean;
-};
-
-export type TransactionDetail = TransactionSummary & {
-  total_debit_minor?: number;
-  total_credit_minor?: number;
-  ledger_entries: LedgerEntry[];
-};
-
-export type AccountStatement = {
-  account: AccountSummary;
-  ledger_entries: LedgerEntry[];
-};
-
-export type AccountDetail = AccountSummary;
-
-export type HoldSummary = {
-  id: string;
-  account_id: string;
-  currency_code: string;
-  amount_minor: number;
-  status: "AUTHORIZED" | "CAPTURED" | "RELEASED" | "EXPIRED";
-  expires_at: string;
-  captured_tx_id?: string | null;
-  created_at?: string;
-  updated_at?: string;
-};
-
-export type WebhookEventSummary = {
-  event_id: string;
-  event_type: string;
-  status: "RECEIVED" | "PROCESSING" | "PROCESSED" | "FAILED" | "DLQ";
-  attempts: number;
-  last_error?: string | null;
-  occurred_at?: string | null;
-  created_at?: string | null;
-  updated_at?: string | null;
-};
-
-export type DlqEventSummary = {
-  event_id: string;
-  event_type: string;
-  attempts: number;
-  last_error: string;
-  created_at?: string | null;
-  updated_at?: string | null;
-};
-
-export type ReconcileSummary = {
-  unbalanced_transactions: number;
-  currency_mismatches: number;
-  invalid_holds: number;
-  negative_available_balances: number;
-  webhook_state_anomalies: number;
-  dlq_state_anomalies: number;
-};
-
-export type ReconcileDetails = {
-  unbalanced_transactions: Array<Record<string, unknown>>;
-  currency_mismatches: Array<Record<string, unknown>>;
-  invalid_holds: Array<Record<string, unknown>>;
-  negative_available_balances: Array<Record<string, unknown>>;
-  webhook_state_anomalies: Array<Record<string, unknown>>;
-  dlq_state_anomalies: Array<Record<string, unknown>>;
-};
-
-export type ReconcileReport = {
-  run_id: string;
-  ran_at: string;
-  summary: ReconcileSummary;
-  details: ReconcileDetails;
-};
-
-export type DemoStats = {
-  dlq_size: number;
-  processed_webhooks: number;
-  deduped_webhooks: number;
-  active_holds: number;
-  idempotency_replays: number;
-  last_reconcile_at?: string | null;
-  reconcile_runs_total: number;
-};
 
 export async function getAccounts(): Promise<AccountSummary[]> {
   return request<AccountSummary[]>("/accounts");
@@ -180,12 +87,12 @@ export async function getCurrencies(): Promise<CurrencySummary[]> {
   return request<CurrencySummary[]>("/currencies");
 }
 
-export async function getAccount(accountId: string): Promise<AccountDetail> {
-  return request<AccountDetail>(`/accounts/${accountId}`);
+export async function getAccount(accountId: string): Promise<AccountSummary> {
+  return request<AccountSummary>(`/accounts/${accountId}`);
 }
 
-export async function getAccountStatement(accountId: string): Promise<AccountStatement> {
-  return request<AccountStatement>(`/accounts/${accountId}/statement?limit=50`);
+export async function getAccountStatement(accountId: string, limit = 50): Promise<AccountStatement> {
+  return request<AccountStatement>(`/accounts/${accountId}/statement?limit=${limit}`);
 }
 
 export async function getTransactions(): Promise<TransactionSummary[]> {
@@ -206,8 +113,8 @@ export async function postTransfer(payload: TransferPayload, idempotencyKey: str
   });
 }
 
-export async function postAccount(payload: AccountPayload): Promise<AccountDetail> {
-  return request<AccountDetail>("/accounts", {
+export async function postAccount(payload: AccountPayload): Promise<AccountSummary> {
+  return request<AccountSummary>("/accounts", {
     method: "POST",
     body: JSON.stringify(payload),
   });
