@@ -105,8 +105,9 @@ export function AccountsPage({ accounts, refresh, onOpenAccount }: Props) {
                 <span>{account.currency_code} · {account.type}</span>
               </div>
               <div className="row-stats">
-                <span>{account.posted_balance_minor}</span>
-                <span>{account.available_balance_minor}</span>
+                <span>Posted: {account.posted_balance_minor}</span>
+                <span>Held: {account.held_balance_minor}</span>
+                <span>Available: {account.available_balance_minor}</span>
               </div>
             </button>
           ))}

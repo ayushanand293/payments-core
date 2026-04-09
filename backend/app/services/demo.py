@@ -7,6 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models import Account, LedgerEntry, LedgerEntryDirection, Transaction, TransactionStatus, TransactionType
+from app.services.audit import write_audit_event
 
 
 class DemoFundingError(Exception):
@@ -58,6 +59,21 @@ def fund_account(session: Session, *, account_id: UUID, amount: int, currency: s
                 amount=amount,
             ),
         ]
+    )
+
+    write_audit_event(
+        session,
+        event_type="TX_CREATED",
+        entity_type="transaction",
+        entity_id=str(transaction.id),
+        payload_json={
+            "tx_id": str(transaction.id),
+            "tx_type": transaction.type.value,
+            "currency": transaction.currency_code,
+            "amount": amount,
+            "idempotency_key": transaction.idempotency_key,
+            "created_at": transaction.created_at.isoformat() if transaction.created_at else None,
+        },
     )
     session.commit()
 

@@ -7,7 +7,7 @@ from sqlalchemy import engine_from_config, pool
 
 from app.core.config import Settings
 from app.core.db import Base
-from app.models import account, currency, idempotency_key, ledger_entry, transaction
+from app.models import account, audit_event, currency, hold, idempotency_key, ledger_entry, transaction
 
 config = context.config
 

@@ -12,6 +12,7 @@ class AccountType(str, enum.Enum):
 class TransactionType(str, enum.Enum):
     TRANSFER = "TRANSFER"
     DEPOSIT = "DEPOSIT"
+    HOLD_CAPTURE = "HOLD_CAPTURE"
 
 
 class TransactionStatus(str, enum.Enum):
@@ -22,3 +23,10 @@ class TransactionStatus(str, enum.Enum):
 class LedgerEntryDirection(str, enum.Enum):
     DEBIT = "DEBIT"
     CREDIT = "CREDIT"
+
+
+class HoldStatus(str, enum.Enum):
+    AUTHORIZED = "AUTHORIZED"
+    CAPTURED = "CAPTURED"
+    RELEASED = "RELEASED"
+    EXPIRED = "EXPIRED"

@@ -35,6 +35,8 @@ def post_transfer(
             },
         )
     except TransferValidationError as error:
-        return JSONResponse(status_code=400, content={"code": error.code, "message": str(error)})
+        conflict_codes = {"CURRENCY_MISMATCH"}
+        status_code = 409 if error.code in conflict_codes else 400
+        return JSONResponse(status_code=status_code, content={"code": error.code, "message": str(error)})
 
     return result.payload

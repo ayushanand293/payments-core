@@ -3,13 +3,15 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from fastapi.encoders import jsonable_encoder
-from sqlalchemy import case, func, select
+from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.idempotency import request_hash
 from app.models import Account, IdempotencyKey, LedgerEntry, LedgerEntryDirection, Transaction, TransactionStatus, TransactionType
 from app.schemas import TransferCreate
+from app.services.audit import write_audit_event
+from app.services.balances import account_balances_minor
 
 
 @dataclass(slots=True)
@@ -34,20 +36,6 @@ class TransferConflictError(Exception):
         self.code = code
         self.available_balance = available_balance
         self.required = required
-
-
-def _account_posted_balance(session: Session, account_id: str) -> int:
-    posted_balance = func.coalesce(
-        func.sum(
-            case(
-                (LedgerEntry.direction == LedgerEntryDirection.CREDIT, LedgerEntry.amount),
-                else_=-LedgerEntry.amount,
-            )
-        ),
-        0,
-    )
-    value = session.execute(select(posted_balance).where(LedgerEntry.account_id == account_id)).scalar_one()
-    return int(value or 0)
 
 
 def create_transfer(session: Session, *, idempotency_key: str, transfer: TransferCreate) -> TransferResult:
@@ -84,7 +72,7 @@ def create_transfer(session: Session, *, idempotency_key: str, transfer: Transfe
     locked_source = session.execute(select(Account).where(Account.id == source.id).with_for_update()).scalar_one()
     locked_destination = session.execute(select(Account).where(Account.id == destination.id).with_for_update()).scalar_one()
 
-    available_balance = _account_posted_balance(session, locked_source.id)
+    _posted_balance, _held_balance, available_balance = account_balances_minor(session, locked_source.id)
     if available_balance < transfer.amount_minor:
         raise TransferConflictError(
             "INSUFFICIENT_FUNDS",
@@ -120,6 +108,21 @@ def create_transfer(session: Session, *, idempotency_key: str, transfer: Transfe
                 amount=transfer.amount_minor,
             ),
         ]
+    )
+
+    write_audit_event(
+        session,
+        event_type="TX_CREATED",
+        entity_type="transaction",
+        entity_id=str(transaction.id),
+        payload_json={
+            "tx_id": str(transaction.id),
+            "tx_type": transaction.type.value,
+            "currency": transaction.currency_code,
+            "amount": transfer.amount_minor,
+            "idempotency_key": idempotency_key,
+            "created_at": transaction.created_at.isoformat() if transaction.created_at else None,
+        },
     )
 
     payload = jsonable_encoder(
