@@ -1,1 +1,1 @@
-{"root":["./src/app.tsx","./src/main.tsx","./src/vite-env.d.ts","./src/api/client.ts","./src/pages/accountdetail.tsx","./src/pages/accounts.tsx","./src/pages/holds.tsx","./src/pages/overview.tsx","./src/pages/transactions.tsx"],"version":"5.9.3"}
+{"root":["./src/app.tsx","./src/main.tsx","./src/vite-env.d.ts","./src/api/client.ts","./src/pages/accountdetail.tsx","./src/pages/accounts.tsx","./src/pages/dlq.tsx","./src/pages/holds.tsx","./src/pages/overview.tsx","./src/pages/transactions.tsx","./src/pages/webhooks.tsx"],"version":"5.9.3"}

@@ -6,11 +6,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.routes.accounts import router as accounts_router
 from app.api.routes.currencies import router as currencies_router
 from app.api.routes.demo import router as demo_router
+from app.api.routes.dlq import router as dlq_router
 from app.api.routes.health import router as health_router
 from app.api.routes.holds import router as holds_router
 from app.api.routes.metrics import router as metrics_router
 from app.api.routes.transactions import router as transactions_router
 from app.api.routes.transfers import router as transfers_router
+from app.api.routes.webhooks import router as webhooks_router
 from app.core.config import Settings, get_settings
 from app.core.db import create_engine_and_session
 from app.core.logging import configure_logging
@@ -57,6 +59,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(holds_router)
     app.include_router(transfers_router)
     app.include_router(transactions_router)
+    app.include_router(webhooks_router)
+    app.include_router(dlq_router)
     app.include_router(demo_router)
     app.include_router(metrics_router)
 

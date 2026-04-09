@@ -1,12 +1,28 @@
 import { useEffect, useMemo, useState } from "react";
-import { getAccounts, getCurrencies, getHolds, getTransactions, postTransfer, type AccountSummary, type CurrencySummary, type HoldSummary, type TransactionSummary } from "./api/client";
+import {
+  getAccounts,
+  getCurrencies,
+  getDlqEvents,
+  getHolds,
+  getTransactions,
+  getWebhookEvents,
+  postTransfer,
+  type AccountSummary,
+  type CurrencySummary,
+  type DlqEventSummary,
+  type HoldSummary,
+  type TransactionSummary,
+  type WebhookEventSummary,
+} from "./api/client";
 import { AccountDetailPage } from "./pages/AccountDetail";
 import { AccountsPage } from "./pages/Accounts";
+import { DlqPage } from "./pages/Dlq";
 import { HoldsPage } from "./pages/Holds";
 import { OverviewPage } from "./pages/Overview";
 import { TransactionsPage } from "./pages/Transactions";
+import { WebhooksPage } from "./pages/Webhooks";
 
-type RouteState = { page: "overview" | "accounts" | "holds" | "transactions" | "account-detail"; accountId?: string };
+type RouteState = { page: "overview" | "accounts" | "holds" | "transactions" | "webhooks" | "dlq" | "account-detail"; accountId?: string };
 
 function parseRoute(pathname: string): RouteState {
   if (pathname.startsWith("/accounts/") && pathname.length > "/accounts/".length) {
@@ -21,6 +37,12 @@ function parseRoute(pathname: string): RouteState {
   if (pathname === "/holds") {
     return { page: "holds" };
   }
+  if (pathname === "/webhooks") {
+    return { page: "webhooks" };
+  }
+  if (pathname === "/dlq") {
+    return { page: "dlq" };
+  }
   return { page: "overview" };
 }
 
@@ -28,6 +50,8 @@ const pages: Array<{ key: RouteState["page"]; label: string; path: string }> = [
   { key: "overview", label: "Overview", path: "/" },
   { key: "accounts", label: "Accounts", path: "/accounts" },
   { key: "holds", label: "Holds", path: "/holds" },
+  { key: "webhooks", label: "Webhooks", path: "/webhooks" },
+  { key: "dlq", label: "DLQ", path: "/dlq" },
   { key: "transactions", label: "Transactions", path: "/transactions" },
 ];
 
@@ -36,6 +60,8 @@ export function App() {
   const [accounts, setAccounts] = useState<AccountSummary[]>([]);
   const [transactions, setTransactions] = useState<TransactionSummary[]>([]);
   const [holds, setHolds] = useState<HoldSummary[]>([]);
+  const [webhookEvents, setWebhookEvents] = useState<WebhookEventSummary[]>([]);
+  const [dlqEvents, setDlqEvents] = useState<DlqEventSummary[]>([]);
   const [currencies, setCurrencies] = useState<CurrencySummary[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -45,11 +71,20 @@ export function App() {
     setIsLoading(true);
     setError(null);
     try {
-      const [nextAccounts, nextTransactions, nextCurrencies, nextHolds] = await Promise.all([getAccounts(), getTransactions(), getCurrencies(), getHolds()]);
+      const [nextAccounts, nextTransactions, nextCurrencies, nextHolds, nextWebhookEvents, nextDlqEvents] = await Promise.all([
+        getAccounts(),
+        getTransactions(),
+        getCurrencies(),
+        getHolds(),
+        getWebhookEvents(),
+        getDlqEvents(),
+      ]);
       setAccounts(nextAccounts);
       setTransactions(nextTransactions);
       setCurrencies(nextCurrencies);
       setHolds(nextHolds);
+      setWebhookEvents(nextWebhookEvents);
+      setDlqEvents(nextDlqEvents);
     } catch (exception) {
       setError(exception instanceof Error ? exception.message : "Unable to load dashboard data");
     } finally {
@@ -140,14 +175,14 @@ export function App() {
           <button className="primary-button" type="button" onClick={() => void runSampleTransfer()}>
             Run sample transfer
           </button>
-          <p className="helper-text">Reset demo, reconciliation, webhooks, and DLQ actions are planned for the next milestone.</p>
+          <p className="helper-text">Webhooks and DLQ controls are now live for Week 3 reliability scenarios.</p>
         </div>
       </aside>
 
       <main className="content-panel">
         <header className="topbar">
           <div>
-            <p className="section-label">Week 2 dashboard</p>
+            <p className="section-label">Week 3 dashboard</p>
             <h2>Operational view for the payments core</h2>
           </div>
           <div className="status-pill">{isLoading ? "Syncing" : "Live"}</div>
@@ -178,6 +213,8 @@ export function App() {
         {route.page === "overview" ? <OverviewPage accounts={accounts} transactions={transactions} /> : null}
         {route.page === "accounts" ? <AccountsPage accounts={accounts} refresh={refreshData} onOpenAccount={(accountId) => navigate(`/accounts/${accountId}`)} /> : null}
         {route.page === "holds" ? <HoldsPage accounts={accounts} holds={holds} refresh={refreshData} /> : null}
+        {route.page === "webhooks" ? <WebhooksPage accounts={accounts} events={webhookEvents} refresh={refreshData} /> : null}
+        {route.page === "dlq" ? <DlqPage events={dlqEvents} refresh={refreshData} /> : null}
         {route.page === "transactions" ? <TransactionsPage transactions={transactions} refresh={refreshData} /> : null}
         {route.page === "account-detail" && route.accountId ? <AccountDetailPage accountId={route.accountId} onBack={() => navigate("/accounts")} /> : null}
       </main>
