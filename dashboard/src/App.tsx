@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   getAccounts,
   getCurrencies,
@@ -80,7 +80,7 @@ export function App() {
   const [error, setError] = useState<string | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
 
-  async function refreshData() {
+  const refreshData = useCallback(async () => {
     setIsLoading(true);
     setError(null);
     try {
@@ -112,11 +112,27 @@ export function App() {
     } finally {
       setIsLoading(false);
     }
-  }
+  }, []);
 
   useEffect(() => {
     void refreshData();
-  }, []);
+  }, [refreshData]);
+
+  useEffect(() => {
+    const autoRefreshPages = new Set<RouteState["page"]>(["overview", "webhooks", "dlq", "reconciliation"]);
+    if (!autoRefreshPages.has(route.page)) {
+      return;
+    }
+
+    const intervalId = window.setInterval(() => {
+      if (document.visibilityState !== "visible") {
+        return;
+      }
+      void refreshData();
+    }, 2500);
+
+    return () => window.clearInterval(intervalId);
+  }, [route.page, refreshData]);
 
   useEffect(() => {
     const onPopState = () => setRoute(parseRoute(window.location.pathname));
@@ -265,7 +281,7 @@ export function App() {
         {route.page === "webhooks" ? <WebhooksPage accounts={accounts} events={webhookEvents} refresh={refreshData} /> : null}
         {route.page === "dlq" ? <DlqPage events={dlqEvents} refresh={refreshData} /> : null}
         {route.page === "reconciliation" ? <ReconciliationPage initialReport={latestReconcile} refresh={refreshData} /> : null}
-        {route.page === "transactions" ? <TransactionsPage transactions={transactions} refresh={refreshData} /> : null}
+        {route.page === "transactions" ? <TransactionsPage transactions={transactions} accounts={accounts} refresh={refreshData} /> : null}
         {route.page === "account-detail" && route.accountId ? <AccountDetailPage accountId={route.accountId} onBack={() => navigate("/accounts")} /> : null}
       </main>
     </div>

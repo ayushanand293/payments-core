@@ -30,6 +30,19 @@ This milestone ships:
 2. Start the stack with `make up`.
 3. Open the dashboard at `http://localhost:5174` and the API at `http://localhost:18000`.
 
+## Demo secret configuration
+
+For Docker Compose, backend, worker, and dashboard all read the same secret via `PAYMENTS_DEMO_SECRET`.
+
+- Local demo mode: set `PAYMENTS_DEMO_SECRET=change-me` (or any shared value) in `.env`.
+- The dashboard sends that value for demo-only actions (`/demo/reset`, `/demo/fund`, `/demo/inject-failure`).
+
+For public deployment:
+
+- Do not expose admin/demo controls to browsers with a shared secret.
+- Disable demo endpoints or protect them with server-side auth (session/JWT/role checks).
+- Do not ship `VITE_DEMO_SECRET` for internet-facing builds.
+
 ## Week 3.5 local ops
 
 ### Fresh start (recommended for demos)

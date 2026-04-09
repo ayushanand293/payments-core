@@ -6,7 +6,7 @@ from uuid import UUID
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.core.metrics import mark_reconcile_run, metrics_snapshot, refresh_runtime_gauges, sync_derived_counters
+from app.core.metrics import metrics_snapshot, refresh_runtime_gauges, sync_derived_counters
 from app.models import (
     Account,
     AccountType,
@@ -214,7 +214,6 @@ def run_reconciliation(session: Session) -> dict:
     reconcile_run.report_json = report
     session.commit()
 
-    mark_reconcile_run()
     refresh_runtime_gauges(session)
     return report
 
