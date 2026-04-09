@@ -6,9 +6,11 @@ from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.core.db import get_db
-from app.schemas import DemoFundCreate, DemoInjectFailureCreate
+from app.core.metrics import refresh_runtime_gauges
+from app.schemas import DashboardStatsOut, DemoFundCreate, DemoInjectFailureCreate
 from app.seed import reset_demo_data
 from app.services.demo import DemoFundingError, fund_account
+from app.services.reconciliation import dashboard_stats
 from app.services.webhooks import set_fail_once
 
 router = APIRouter(prefix="/demo", tags=["demo"])
@@ -56,4 +58,10 @@ def post_demo_reset(
         raise HTTPException(status_code=401, detail={"code": "UNAUTHORIZED", "message": "Invalid demo secret"})
 
     reset_demo_data(session)
+    refresh_runtime_gauges(session)
     return {"status": "ok", "message": "Demo data reset complete"}
+
+
+@router.get("/stats", response_model=DashboardStatsOut)
+def get_demo_stats(session: Session = Depends(get_db)):
+    return dashboard_stats(session)

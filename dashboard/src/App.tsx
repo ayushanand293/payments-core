@@ -2,15 +2,21 @@ import { useEffect, useMemo, useState } from "react";
 import {
   getAccounts,
   getCurrencies,
+  getDemoStats,
   getDlqEvents,
   getHolds,
+  getReconcileLatest,
   getTransactions,
   getWebhookEvents,
+  postDemoReset,
+  postReconcileRun,
   postTransfer,
   type AccountSummary,
   type CurrencySummary,
+  type DemoStats,
   type DlqEventSummary,
   type HoldSummary,
+  type ReconcileReport,
   type TransactionSummary,
   type WebhookEventSummary,
 } from "./api/client";
@@ -19,10 +25,11 @@ import { AccountsPage } from "./pages/Accounts";
 import { DlqPage } from "./pages/Dlq";
 import { HoldsPage } from "./pages/Holds";
 import { OverviewPage } from "./pages/Overview";
+import { ReconciliationPage } from "./pages/Reconciliation";
 import { TransactionsPage } from "./pages/Transactions";
 import { WebhooksPage } from "./pages/Webhooks";
 
-type RouteState = { page: "overview" | "accounts" | "holds" | "transactions" | "webhooks" | "dlq" | "account-detail"; accountId?: string };
+type RouteState = { page: "overview" | "accounts" | "holds" | "transactions" | "webhooks" | "dlq" | "reconciliation" | "account-detail"; accountId?: string };
 
 function parseRoute(pathname: string): RouteState {
   if (pathname.startsWith("/accounts/") && pathname.length > "/accounts/".length) {
@@ -43,6 +50,9 @@ function parseRoute(pathname: string): RouteState {
   if (pathname === "/dlq") {
     return { page: "dlq" };
   }
+  if (pathname === "/reconciliation") {
+    return { page: "reconciliation" };
+  }
   return { page: "overview" };
 }
 
@@ -52,6 +62,7 @@ const pages: Array<{ key: RouteState["page"]; label: string; path: string }> = [
   { key: "holds", label: "Holds", path: "/holds" },
   { key: "webhooks", label: "Webhooks", path: "/webhooks" },
   { key: "dlq", label: "DLQ", path: "/dlq" },
+  { key: "reconciliation", label: "Reconciliation", path: "/reconciliation" },
   { key: "transactions", label: "Transactions", path: "/transactions" },
 ];
 
@@ -62,6 +73,8 @@ export function App() {
   const [holds, setHolds] = useState<HoldSummary[]>([]);
   const [webhookEvents, setWebhookEvents] = useState<WebhookEventSummary[]>([]);
   const [dlqEvents, setDlqEvents] = useState<DlqEventSummary[]>([]);
+  const [demoStats, setDemoStats] = useState<DemoStats | null>(null);
+  const [latestReconcile, setLatestReconcile] = useState<ReconcileReport | null>(null);
   const [currencies, setCurrencies] = useState<CurrencySummary[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -71,13 +84,14 @@ export function App() {
     setIsLoading(true);
     setError(null);
     try {
-      const [nextAccounts, nextTransactions, nextCurrencies, nextHolds, nextWebhookEvents, nextDlqEvents] = await Promise.all([
+      const [nextAccounts, nextTransactions, nextCurrencies, nextHolds, nextWebhookEvents, nextDlqEvents, nextDemoStats] = await Promise.all([
         getAccounts(),
         getTransactions(),
         getCurrencies(),
         getHolds(),
         getWebhookEvents(),
         getDlqEvents(),
+        getDemoStats(),
       ]);
       setAccounts(nextAccounts);
       setTransactions(nextTransactions);
@@ -85,6 +99,14 @@ export function App() {
       setHolds(nextHolds);
       setWebhookEvents(nextWebhookEvents);
       setDlqEvents(nextDlqEvents);
+      setDemoStats(nextDemoStats);
+
+      try {
+        const report = await getReconcileLatest();
+        setLatestReconcile(report);
+      } catch {
+        setLatestReconcile(null);
+      }
     } catch (exception) {
       setError(exception instanceof Error ? exception.message : "Unable to load dashboard data");
     } finally {
@@ -146,6 +168,27 @@ export function App() {
     }
   }
 
+  async function resetDemoData() {
+    try {
+      await postDemoReset();
+      setActionMessage("Demo reset complete.");
+      await refreshData();
+    } catch (exception) {
+      setActionMessage(exception instanceof Error ? exception.message : "Demo reset failed");
+    }
+  }
+
+  async function runReconciliation() {
+    try {
+      const report = await postReconcileRun();
+      setLatestReconcile(report);
+      setActionMessage(`Reconciliation run ${report.run_id} completed.`);
+      await refreshData();
+    } catch (exception) {
+      setActionMessage(exception instanceof Error ? exception.message : "Reconciliation failed");
+    }
+  }
+
   return (
     <div className="app-shell">
       <aside className="sidebar">
@@ -174,6 +217,12 @@ export function App() {
           </button>
           <button className="primary-button" type="button" onClick={() => void runSampleTransfer()}>
             Run sample transfer
+          </button>
+          <button className="ghost-button" type="button" onClick={() => void resetDemoData()}>
+            Reset demo
+          </button>
+          <button className="ghost-button" type="button" onClick={() => void runReconciliation()}>
+            Run reconciliation
           </button>
           <p className="helper-text">Webhooks and DLQ controls are now live for Week 3 reliability scenarios.</p>
         </div>
@@ -210,11 +259,12 @@ export function App() {
           </article>
         </section>
 
-        {route.page === "overview" ? <OverviewPage accounts={accounts} transactions={transactions} /> : null}
+        {route.page === "overview" ? <OverviewPage accounts={accounts} transactions={transactions} stats={demoStats} onResetDemo={resetDemoData} onRunReconciliation={runReconciliation} /> : null}
         {route.page === "accounts" ? <AccountsPage accounts={accounts} refresh={refreshData} onOpenAccount={(accountId) => navigate(`/accounts/${accountId}`)} /> : null}
         {route.page === "holds" ? <HoldsPage accounts={accounts} holds={holds} refresh={refreshData} /> : null}
         {route.page === "webhooks" ? <WebhooksPage accounts={accounts} events={webhookEvents} refresh={refreshData} /> : null}
         {route.page === "dlq" ? <DlqPage events={dlqEvents} refresh={refreshData} /> : null}
+        {route.page === "reconciliation" ? <ReconciliationPage initialReport={latestReconcile} refresh={refreshData} /> : null}
         {route.page === "transactions" ? <TransactionsPage transactions={transactions} refresh={refreshData} /> : null}
         {route.page === "account-detail" && route.accountId ? <AccountDetailPage accountId={route.accountId} onBack={() => navigate("/accounts")} /> : null}
       </main>

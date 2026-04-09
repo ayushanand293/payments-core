@@ -2,7 +2,7 @@
 
 Mini Stripe/Razorpay-style payments backend demo.
 
-## Week 1-3
+## Week 1-4
 
 This milestone ships:
 
@@ -19,6 +19,10 @@ This milestone ships:
 - Replay APIs for failed and DLQ events
 - Failure-injection endpoint for reliability demos
 - Dashboard pages for holds, webhooks, and DLQ operations
+- Reconciliation engine with persisted runs in `reconcile_runs`
+- Reconciliation APIs: `POST /reconcile/run`, `GET /reconcile/latest`
+- Demo control center KPIs from `GET /demo/stats`
+- Prometheus counters and gauges for webhook, DLQ, idempotency, and reconciliation flows
 
 ## Run locally
 
@@ -49,6 +53,33 @@ This milestone ships:
 - `make smoke` runs `scripts/smoke_demo.sh` for an end-to-end verification.
 
 Backend startup now waits for Postgres, then runs `alembic upgrade head`, then starts FastAPI.
+
+## Reconciliation Invariants
+
+The reconciliation report validates:
+
+- per-transaction debit/credit balance invariants
+- transaction currency versus ledger entry currency consistency
+- hold state consistency (`AUTHORIZED`, `CAPTURED`, `RELEASED`, `EXPIRED`)
+- negative available balances for `USER` and `MERCHANT` accounts
+- webhook/DLQ state consistency anomalies
+
+Each run is stored in Postgres (`reconcile_runs`) and is queryable via `GET /reconcile/latest`.
+
+## Metrics
+
+Key Prometheus metrics exposed by `GET /metrics`:
+
+- `payments_core_webhooks_received_total`
+- `payments_core_webhooks_deduped_total`
+- `payments_core_webhooks_processed_total`
+- `payments_core_webhooks_failed_total`
+- `payments_core_dlq_replays_total`
+- `payments_core_idempotency_replays_total`
+- `payments_core_reconcile_runs_total`
+- `payments_core_dlq_size`
+- `payments_core_active_holds`
+- `payments_core_webhooks_processing`
 
 ## Week 3 quick checks
 

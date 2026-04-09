@@ -55,6 +55,8 @@ def get_transaction_detail(session: Session, transaction_id: UUID) -> dict | Non
         "description": transaction.description,
         "created_at": transaction.created_at,
         "balanced": credit_total == debit_total,
+        "total_debit_minor": debit_total,
+        "total_credit_minor": credit_total,
         "ledger_entries": [
             {
                 "id": entry.id,

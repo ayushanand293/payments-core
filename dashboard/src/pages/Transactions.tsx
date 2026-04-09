@@ -78,6 +78,9 @@ export function TransactionsPage({ transactions, refresh }: Props) {
                 <strong>{detail.description ?? detail.type}</strong>
                 <span>{detail.currency_code} · {detail.status}</span>
                 <span className={detailBalanced ? "badge success" : "badge warning"}>{detailBalanced ? "Balanced" : "Unbalanced"}</span>
+                <span>
+                  Debit: {formatMinor.format(detail.total_debit_minor ?? 0)} · Credit: {formatMinor.format(detail.total_credit_minor ?? 0)}
+                </span>
               </div>
               <div className="mini-table">
                 {detail.ledger_entries.map((entry) => (

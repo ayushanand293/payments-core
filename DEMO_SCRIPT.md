@@ -37,3 +37,11 @@
 3. Click `Inject fail-once` for a webhook event, then replay it.
 4. Create a failing webhook payload (for example currency mismatch) to push it to DLQ.
 5. Open the DLQ page and replay the DLQ event after correcting payload in admin/testing flow.
+
+## Show reconciliation and control center (Week 4)
+
+1. Open the Overview page and use `Reset demo`.
+2. Click `Run reconciliation` from the Overview control center.
+3. Open the Reconciliation page and run reconciliation again.
+4. Highlight that summary counts are expected to be zero in clean demo state.
+5. Call out that runs are persisted in DB (`reconcile_runs`) and `GET /reconcile/latest` returns the latest report.
