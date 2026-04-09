@@ -30,3 +30,11 @@ class HoldStatus(str, enum.Enum):
     CAPTURED = "CAPTURED"
     RELEASED = "RELEASED"
     EXPIRED = "EXPIRED"
+
+
+class WebhookEventStatus(str, enum.Enum):
+    RECEIVED = "RECEIVED"
+    PROCESSING = "PROCESSING"
+    PROCESSED = "PROCESSED"
+    FAILED = "FAILED"
+    DLQ = "DLQ"

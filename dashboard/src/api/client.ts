@@ -22,6 +22,13 @@ type HoldAuthorizePayload = {
   ttl_seconds?: number;
 };
 
+type WebhookGatewayPayload = {
+  event_id: string;
+  event_type: string;
+  occurred_at?: string;
+  payload: Record<string, unknown>;
+};
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`, {
     ...init,
@@ -97,6 +104,26 @@ export type HoldSummary = {
   captured_tx_id?: string | null;
   created_at?: string;
   updated_at?: string;
+};
+
+export type WebhookEventSummary = {
+  event_id: string;
+  event_type: string;
+  status: "RECEIVED" | "PROCESSING" | "PROCESSED" | "FAILED" | "DLQ";
+  attempts: number;
+  last_error?: string | null;
+  occurred_at?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+};
+
+export type DlqEventSummary = {
+  event_id: string;
+  event_type: string;
+  attempts: number;
+  last_error: string;
+  created_at?: string | null;
+  updated_at?: string | null;
 };
 
 export async function getAccounts(): Promise<AccountSummary[]> {
@@ -185,5 +212,42 @@ export async function postHoldRelease(holdId: string, currencyCode: string, idem
       "Idempotency-Key": idempotencyKey,
     },
     body: JSON.stringify({ currency_code: currencyCode }),
+  });
+}
+
+export async function getWebhookEvents(): Promise<WebhookEventSummary[]> {
+  return request<WebhookEventSummary[]>("/webhooks/events");
+}
+
+export async function postWebhookGateway(payload: WebhookGatewayPayload): Promise<{ event_id: string; status: string; deduplicated: boolean }> {
+  return request<{ event_id: string; status: string; deduplicated: boolean }>("/webhooks/gateway", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function postWebhookReplay(eventId: string): Promise<{ event_id: string; status: string; deduplicated: boolean }> {
+  return request<{ event_id: string; status: string; deduplicated: boolean }>(`/webhooks/events/${eventId}/replay`, {
+    method: "POST",
+  });
+}
+
+export async function getDlqEvents(): Promise<DlqEventSummary[]> {
+  return request<DlqEventSummary[]>("/dlq");
+}
+
+export async function postDlqReplay(eventId: string): Promise<{ event_id: string; status: string; deduplicated: boolean }> {
+  return request<{ event_id: string; status: string; deduplicated: boolean }>(`/dlq/${eventId}/replay`, {
+    method: "POST",
+  });
+}
+
+export async function postInjectFailure(eventId: string): Promise<{ event_id: string; mode: string }> {
+  return request<{ event_id: string; mode: string }>("/demo/inject-failure", {
+    method: "POST",
+    headers: {
+      "X-DEMO-SECRET": DEMO_SECRET,
+    },
+    body: JSON.stringify({ event_id: eventId }),
   });
 }

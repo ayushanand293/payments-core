@@ -1,9 +1,24 @@
 from __future__ import annotations
 
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
-from app.models import Account, AccountType, Currency, EscrowAccount, LedgerEntry, LedgerEntryDirection, Transaction, TransactionStatus, TransactionType
+from app.models import (
+    Account,
+    AccountType,
+    AuditEvent,
+    Currency,
+    DlqEvent,
+    EscrowAccount,
+    Hold,
+    IdempotencyKey,
+    LedgerEntry,
+    LedgerEntryDirection,
+    Transaction,
+    TransactionStatus,
+    TransactionType,
+    WebhookEvent,
+)
 
 
 def seed_demo_data(session: Session) -> None:
@@ -54,3 +69,19 @@ def seed_demo_data(session: Session) -> None:
         )
 
     session.commit()
+
+
+def reset_demo_data(session: Session) -> None:
+    # Ordered deletes keep this path portable across Postgres and SQLite.
+    session.execute(delete(AuditEvent))
+    session.execute(delete(DlqEvent))
+    session.execute(delete(WebhookEvent))
+    session.execute(delete(Hold))
+    session.execute(delete(LedgerEntry))
+    session.execute(delete(IdempotencyKey))
+    session.execute(delete(EscrowAccount))
+    session.execute(delete(Transaction))
+    session.execute(delete(Account))
+    session.execute(delete(Currency))
+    session.commit()
+    seed_demo_data(session)
