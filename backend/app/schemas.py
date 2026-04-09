@@ -78,3 +78,30 @@ class AccountDetailOut(AccountOut):
 class AccountStatementOut(BaseModel):
     account: AccountOut
     ledger_entries: list[LedgerEntryOut]
+
+
+class HoldAuthorizeCreate(BaseModel):
+    account_id: UUID
+    currency_code: str = Field(min_length=3, max_length=3)
+    amount_minor: int = Field(gt=0)
+    ttl_seconds: int | None = Field(default=None, gt=0)
+
+
+class HoldCaptureCreate(BaseModel):
+    currency_code: str = Field(min_length=3, max_length=3)
+
+
+class HoldReleaseCreate(BaseModel):
+    currency_code: str = Field(min_length=3, max_length=3)
+
+
+class HoldOut(BaseModel):
+    id: UUID
+    account_id: UUID
+    currency_code: str
+    amount_minor: int
+    status: str
+    expires_at: datetime
+    captured_tx_id: UUID | None = None
+    created_at: datetime | None = None
+    updated_at: datetime | None = None

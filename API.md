@@ -97,6 +97,108 @@ Rules:
 - Same-key reuse with a different payload or scope returns `409` with `IDEMPOTENCY_KEY_REUSED`.
 - Insufficient funds returns `409` with `INSUFFICIENT_FUNDS`.
 
+## `GET /holds`
+
+Used by the dashboard Holds page.
+
+Response:
+
+```json
+[
+  {
+    "id": "a6c1a22f-c3a8-4e56-81a9-09fe51c529c8",
+    "account_id": "8f4f4c2f-58c4-4f8e-89a8-3efc3a0f9f0a",
+    "currency_code": "INR",
+    "amount_minor": 1250,
+    "status": "AUTHORIZED",
+    "expires_at": "2026-04-06T12:15:00",
+    "captured_tx_id": null,
+    "created_at": "2026-04-06T12:00:00",
+    "updated_at": "2026-04-06T12:00:00"
+  }
+]
+```
+
+## `POST /holds/authorize`
+
+Headers:
+
+```http
+Idempotency-Key: hold-authorize-001
+```
+
+Request:
+
+```json
+{
+  "account_id": "8f4f4c2f-58c4-4f8e-89a8-3efc3a0f9f0a",
+  "currency_code": "INR",
+  "amount_minor": 1250,
+  "ttl_seconds": 900
+}
+```
+
+Behavior:
+
+- Creates `AUTHORIZED` hold if available balance is sufficient.
+- Reduces available balance, but does not create ledger entries.
+- Default `ttl_seconds` is 900 when omitted.
+
+## `POST /holds/{hold_id}/capture`
+
+Headers:
+
+```http
+Idempotency-Key: hold-capture-001
+```
+
+Request:
+
+```json
+{
+  "currency_code": "INR"
+}
+```
+
+Behavior:
+
+- Requires hold in `AUTHORIZED` state and not expired.
+- Creates `HOLD_CAPTURE` transaction.
+- Ledger entries:
+  - `DEBIT` user account
+  - `CREDIT` escrow account for the same currency
+- Marks hold `CAPTURED` and sets `captured_tx_id`.
+
+## `POST /holds/{hold_id}/release`
+
+Headers:
+
+```http
+Idempotency-Key: hold-release-001
+```
+
+Request:
+
+```json
+{
+  "currency_code": "INR"
+}
+```
+
+Behavior:
+
+- Requires hold in `AUTHORIZED` state and not expired.
+- Marks hold `RELEASED`.
+- No ledger entries are created.
+
+## Hold Error Codes
+
+- `HOLD_NOT_FOUND` (404)
+- `HOLD_EXPIRED` (409)
+- `INVALID_HOLD_STATE` (409)
+- `CURRENCY_MISMATCH` (409)
+- `IDEMPOTENCY_KEY_REUSED` (409)
+
 ## `POST /demo/fund`
 
 Used by the dashboard account detail page to fund demo accounts before holds/capture flows.

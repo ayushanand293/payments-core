@@ -19,6 +19,19 @@ export function TransactionsPage({ transactions, refresh }: Props) {
     [selectedTransactionId, transactions],
   );
 
+  const detailBalanced = useMemo(() => {
+    if (!detail) {
+      return null;
+    }
+    const credits = detail.ledger_entries
+      .filter((entry) => entry.direction === "CREDIT")
+      .reduce((sum, entry) => sum + entry.amount_minor, 0);
+    const debits = detail.ledger_entries
+      .filter((entry) => entry.direction === "DEBIT")
+      .reduce((sum, entry) => sum + entry.amount_minor, 0);
+    return credits === debits;
+  }, [detail]);
+
   async function loadDetail(transactionId: string) {
     setLoading(true);
     setError(null);
@@ -64,7 +77,7 @@ export function TransactionsPage({ transactions, refresh }: Props) {
               <div className="statement-summary">
                 <strong>{detail.description ?? detail.type}</strong>
                 <span>{detail.currency_code} · {detail.status}</span>
-                <span className={detail.balanced ? "badge success" : "badge warning"}>{detail.balanced ? "Balanced ✓" : "Check"}</span>
+                <span className={detailBalanced ? "badge success" : "badge warning"}>{detailBalanced ? "Balanced" : "Unbalanced"}</span>
               </div>
               <div className="mini-table">
                 {detail.ledger_entries.map((entry) => (

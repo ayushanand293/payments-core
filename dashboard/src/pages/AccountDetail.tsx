@@ -100,6 +100,7 @@ export function AccountDetailPage({ accountId, onBack }: Props) {
               <strong>{account.name}</strong>
               <span>{account.currency_code} · {account.type}</span>
               <span>Posted: {formatMinor.format(account.posted_balance_minor)}</span>
+              <span>Held: {formatMinor.format(account.held_balance_minor)}</span>
               <span>Available: {formatMinor.format(account.available_balance_minor)}</span>
             </div>
             <div className="mini-table">
