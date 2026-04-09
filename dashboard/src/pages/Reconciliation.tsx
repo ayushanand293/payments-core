@@ -1,5 +1,10 @@
 import { useMemo, useState } from "react";
 import { getReconcileLatest, postReconcileRun, type ReconcileReport } from "../api/client";
+import { toUserMessage } from "../api/errors";
+import { Button } from "../components/ui/Button";
+import { Card } from "../components/ui/Card";
+import { JsonViewer } from "../components/ui/JsonViewer";
+import { Notice } from "../components/ui/Notice";
 
 type Props = {
   initialReport: ReconcileReport | null;
@@ -26,7 +31,7 @@ export function ReconciliationPage({ initialReport, refresh }: Props) {
       setReport(next);
       await refresh();
     } catch (exception) {
-      setError(exception instanceof Error ? exception.message : "Reconciliation run failed");
+      setError(toUserMessage(exception, "Reconciliation run failed"));
     } finally {
       setLoading(false);
     }
@@ -39,62 +44,74 @@ export function ReconciliationPage({ initialReport, refresh }: Props) {
       const next = await getReconcileLatest();
       setReport(next);
     } catch (exception) {
-      setError(exception instanceof Error ? exception.message : "Unable to load latest reconciliation report");
+      setError(toUserMessage(exception, "Unable to load latest reconciliation report"));
     } finally {
       setLoading(false);
     }
   }
 
-  return (
-    <section className="page-stack">
-      <div className="panel">
-        <div className="panel-header">
-          <h3>Reconciliation</h3>
-          <span>{report ? `Last run ${new Date(report.ran_at).toLocaleString()}` : "No run yet"}</span>
-        </div>
-        <div className="row-actions">
-          <button className="primary-button" type="button" onClick={() => void runNow()} disabled={loading}>
-            Run reconciliation
-          </button>
-          <button className="ghost-button" type="button" onClick={() => void loadLatest()} disabled={loading}>
-            Load latest
-          </button>
-        </div>
-      </div>
+  async function copyDetails(value: unknown) {
+    await navigator.clipboard.writeText(JSON.stringify(value, null, 2));
+  }
 
-      {error ? <div className="alert-card">{error}</div> : null}
+  function downloadDetails(key: string, value: unknown) {
+    const blob = new Blob([JSON.stringify(value, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `${key}-${report?.run_id ?? "latest"}.json`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  }
+
+  return (
+    <section style={{ display: "grid", gap: "var(--space-4)" }}>
+      <Card title="Reconciliation" subtitle={report ? `Last run ${new Date(report.ran_at).toLocaleString()}` : "No run yet"}>
+        <div className="ui-toolbar">
+          <Button variant="primary" type="button" onClick={() => void runNow()} disabled={loading}>
+            Run reconciliation
+          </Button>
+          <Button variant="secondary" type="button" onClick={() => void loadLatest()} disabled={loading}>
+            Load latest
+          </Button>
+        </div>
+      </Card>
+
+      {error ? <Notice variant="error">{error}</Notice> : null}
 
       {report ? (
         <>
-          <div className="panel card-grid">
+          <div className="ui-grid-3">
             {summaryEntries.map(([key, value]) => (
-              <article key={key} className="info-card">
-                <span>{formatLabel(key)}</span>
-                <strong>{value}</strong>
-              </article>
+              <Card key={key}>
+                <div className="ui-stat">
+                  <span className="ui-stat__label">{formatLabel(key)}</span>
+                  <strong className="ui-stat__value">{value}</strong>
+                </div>
+              </Card>
             ))}
           </div>
 
-          <div className="panel">
-            <div className="panel-header">
-              <h3>Details</h3>
-              <span>Run id: {report.run_id}</span>
-            </div>
-            <div className="mini-table">
+          <Card title="Details" subtitle={`Run id: ${report.run_id}`}>
+            <div style={{ display: "grid", gap: "var(--space-3)" }}>
               {detailEntries.map(([key, value]) => (
-                <details key={key} className="details-block">
+                <details key={key} style={{ border: "1px solid var(--border)", borderRadius: "var(--radius-md)", padding: "var(--space-3)" }}>
                   <summary>{formatLabel(key)} ({value.length})</summary>
-                  <pre className="details-json">{JSON.stringify(value, null, 2)}</pre>
+                  <div className="ui-toolbar" style={{ margin: "var(--space-2) 0" }}>
+                    <Button variant="ghost" onClick={() => void copyDetails(value)}>Copy JSON</Button>
+                    <Button variant="secondary" onClick={() => downloadDetails(key, value)}>Download JSON</Button>
+                  </div>
+                  <JsonViewer value={value} />
                 </details>
               ))}
             </div>
-          </div>
+          </Card>
         </>
       ) : (
-        <div className="empty-state">
+        <Card>
           <strong>No reconciliation runs yet</strong>
-          <span>Run reconciliation to persist and view the latest report.</span>
-        </div>
+          <p className="ui-subtitle">Run reconciliation to persist and view the latest report.</p>
+        </Card>
       )}
     </section>
   );

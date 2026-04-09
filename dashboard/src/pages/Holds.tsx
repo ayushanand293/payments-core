@@ -6,6 +6,15 @@ import {
   type AccountSummary,
   type HoldSummary,
 } from "../api/client";
+import { toUserMessage } from "../api/errors";
+import { Badge, statusVariant } from "../components/ui/Badge";
+import { Button } from "../components/ui/Button";
+import { Card } from "../components/ui/Card";
+import { Input } from "../components/ui/Input";
+import { Modal } from "../components/ui/Modal";
+import { Notice } from "../components/ui/Notice";
+import { Select } from "../components/ui/Select";
+import { Table, type TableColumn } from "../components/ui/Table";
 
 type Props = {
   accounts: AccountSummary[];
@@ -26,6 +35,7 @@ export function HoldsPage({ accounts, holds, refresh }: Props) {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loadingId, setLoadingId] = useState<string | null>(null);
+  const [pendingAction, setPendingAction] = useState<{ type: "capture" | "release"; hold: HoldSummary } | null>(null);
 
   const accountMap = useMemo(() => new Map(accounts.map((account) => [account.id, account])), [accounts]);
   const sortedHolds = useMemo(() => [...holds].sort((a, b) => String(b.created_at).localeCompare(String(a.created_at))), [holds]);
@@ -71,7 +81,7 @@ export function HoldsPage({ accounts, holds, refresh }: Props) {
       setMessage("Hold authorized.");
       await refresh();
     } catch (exception) {
-      setError(exception instanceof Error ? exception.message : "Authorize failed");
+      setError(toUserMessage(exception, "Authorize failed"));
     }
   }
 
@@ -84,7 +94,7 @@ export function HoldsPage({ accounts, holds, refresh }: Props) {
       setMessage(`Hold captured in tx ${response.transaction_id}`);
       await refresh();
     } catch (exception) {
-      setError(exception instanceof Error ? exception.message : "Capture failed");
+      setError(toUserMessage(exception, "Capture failed"));
     } finally {
       setLoadingId(null);
     }
@@ -99,78 +109,103 @@ export function HoldsPage({ accounts, holds, refresh }: Props) {
       setMessage("Hold released.");
       await refresh();
     } catch (exception) {
-      setError(exception instanceof Error ? exception.message : "Release failed");
+      setError(toUserMessage(exception, "Release failed"));
     } finally {
       setLoadingId(null);
     }
   }
 
+  async function confirmPendingAction() {
+    if (!pendingAction) {
+      return;
+    }
+    if (pendingAction.type === "capture") {
+      await runCapture(pendingAction.hold);
+    } else {
+      await runRelease(pendingAction.hold);
+    }
+    setPendingAction(null);
+  }
+
+  const columns: TableColumn<HoldSummary>[] = [
+    {
+      key: "account",
+      header: "Account",
+      render: (hold) => {
+        const account = accountMap.get(hold.account_id);
+        return account?.name ?? hold.account_id;
+      },
+    },
+    { key: "status", header: "Status", render: (hold) => <Badge variant={statusVariant(hold.status)}>{hold.status}</Badge> },
+    { key: "currency", header: "Currency", render: (hold) => hold.currency_code },
+    { key: "amount", header: "Amount", render: (hold) => formatMinor.format(hold.amount_minor) },
+    {
+      key: "expires",
+      header: "Expires",
+      render: (hold) => {
+        const isExpired = new Date(hold.expires_at).getTime() < Date.now();
+        return (
+          <div>
+            <div>{new Date(hold.expires_at).toLocaleString()}</div>
+            {isExpired ? <Badge variant="danger">Expired</Badge> : null}
+          </div>
+        );
+      },
+    },
+    {
+      key: "actions",
+      header: "Actions",
+      render: (hold) => {
+        const isActive = hold.status === "AUTHORIZED";
+        return (
+          <div style={{ display: "flex", gap: "var(--space-2)" }}>
+            <Button variant="secondary" disabled={!isActive || loadingId === hold.id} onClick={() => setPendingAction({ type: "capture", hold })}>Capture</Button>
+            <Button variant="ghost" disabled={!isActive || loadingId === hold.id} onClick={() => setPendingAction({ type: "release", hold })}>Release</Button>
+          </div>
+        );
+      },
+    },
+  ];
+
   return (
-    <section className="page-stack">
-      <div className="panel">
-        <div className="panel-header">
-          <h3>Authorize hold</h3>
-          <span>Default TTL is 900 seconds</span>
-        </div>
-        <form className="hold-form" onSubmit={(event) => void submitAuthorize(event)}>
-          <label>
-            <span>Account</span>
-            <select value={accountId} onChange={(event) => setAccountId(event.target.value)}>
-              {accounts.map((account) => (
-                <option key={account.id} value={account.id}>
-                  {account.name} ({account.currency_code})
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            <span>Amount (minor)</span>
-            <input value={amountMinor} onChange={(event) => setAmountMinor(event.target.value)} />
-          </label>
-          <label>
-            <span>TTL seconds</span>
-            <input value={ttlSeconds} onChange={(event) => setTtlSeconds(event.target.value)} />
-          </label>
-          <button className="primary-button" type="submit">
-            Authorize hold
-          </button>
+    <section style={{ display: "grid", gap: "var(--space-4)" }}>
+      <Card title="Authorize hold" subtitle="Default TTL is 900 seconds">
+        <form className="ui-form-grid" onSubmit={(event) => void submitAuthorize(event)}>
+          <Select label="Account" value={accountId} onChange={(event) => setAccountId(event.target.value)}>
+            {accounts.map((account) => (
+              <option key={account.id} value={account.id}>{account.name} ({account.currency_code})</option>
+            ))}
+          </Select>
+          <Input label="Amount (minor)" value={amountMinor} onChange={(event) => setAmountMinor(event.target.value)} />
+          <Input label="TTL seconds" value={ttlSeconds} onChange={(event) => setTtlSeconds(event.target.value)} />
+          <Button variant="primary" type="submit">Authorize hold</Button>
         </form>
-      </div>
+      </Card>
 
-      {error ? <div className="alert-card">{error}</div> : null}
-      {message ? <div className="alert-card soft">{message}</div> : null}
+      {error ? <Notice variant="error">{error}</Notice> : null}
+      {message ? <Notice variant="success">{message}</Notice> : null}
 
-      <div className="panel">
-        <div className="panel-header">
-          <h3>Holds</h3>
-          <span>Capture moves funds to escrow. Release frees availability.</span>
-        </div>
-        <div className="table-card">
-          {sortedHolds.map((hold) => {
-            const account = accountMap.get(hold.account_id);
-            const isActive = hold.status === "AUTHORIZED";
-            return (
-              <div key={hold.id} className="table-row static-row">
-                <div>
-                  <strong>{account?.name ?? hold.account_id}</strong>
-                  <span>
-                    {hold.currency_code} · {hold.status} · Expires {new Date(hold.expires_at).toLocaleString()}
-                  </span>
-                </div>
-                <div className="row-actions">
-                  <span className="mono-number">{formatMinor.format(hold.amount_minor)}</span>
-                  <button className="inline-action-button" type="button" disabled={!isActive || loadingId === hold.id} onClick={() => void runCapture(hold)}>
-                    Capture
-                  </button>
-                  <button className="inline-action-button" type="button" disabled={!isActive || loadingId === hold.id} onClick={() => void runRelease(hold)}>
-                    Release
-                  </button>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
+      <Card title="Holds" subtitle="Capture moves funds to escrow. Release frees availability.">
+        <Table columns={columns} rows={sortedHolds} rowKey={(hold) => hold.id} emptyState="No holds yet." />
+      </Card>
+
+      <Modal
+        open={Boolean(pendingAction)}
+        title={pendingAction ? `${pendingAction.type === "capture" ? "Capture" : "Release"} hold` : "Confirm action"}
+        onClose={() => setPendingAction(null)}
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setPendingAction(null)}>Cancel</Button>
+            <Button variant={pendingAction?.type === "capture" ? "primary" : "danger"} onClick={() => void confirmPendingAction()}>Confirm</Button>
+          </>
+        }
+      >
+        <p>
+          {pendingAction?.type === "capture"
+            ? "Capturing this hold posts a hold-capture transaction and moves funds to escrow."
+            : "Releasing this hold frees the reserved amount back to available balance."}
+        </p>
+      </Modal>
     </section>
   );
 }

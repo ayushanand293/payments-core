@@ -20,6 +20,12 @@ import {
   type TransactionSummary,
   type WebhookEventSummary,
 } from "./api/client";
+import { toUserMessage } from "./api/errors";
+import { Button } from "./components/ui/Button";
+import { Card } from "./components/ui/Card";
+import { Notice } from "./components/ui/Notice";
+import { Skeleton } from "./components/ui/Spinner";
+import { usePolling } from "./hooks/usePolling";
 import { AccountDetailPage } from "./pages/AccountDetail";
 import { AccountsPage } from "./pages/Accounts";
 import { DlqPage } from "./pages/Dlq";
@@ -77,12 +83,17 @@ export function App() {
   const [latestReconcile, setLatestReconcile] = useState<ReconcileReport | null>(null);
   const [currencies, setCurrencies] = useState<CurrencySummary[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isManualRefreshing, setIsManualRefreshing] = useState(false);
+  const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
 
-  const refreshData = useCallback(async () => {
-    setIsLoading(true);
-    setError(null);
+  const refreshData = useCallback(async (reason: "manual" | "background" | "action" = "background") => {
+    setIsRefreshing(true);
+    if (reason === "manual") {
+      setIsManualRefreshing(true);
+    }
     try {
       const [nextAccounts, nextTransactions, nextCurrencies, nextHolds, nextWebhookEvents, nextDlqEvents, nextDemoStats] = await Promise.all([
         getAccounts(),
@@ -107,38 +118,56 @@ export function App() {
       } catch {
         setLatestReconcile(null);
       }
+      setLastUpdatedAt(new Date());
     } catch (exception) {
-      setError(exception instanceof Error ? exception.message : "Unable to load dashboard data");
+      setError(toUserMessage(exception, "Unable to load dashboard data"));
     } finally {
       setIsLoading(false);
+      setIsRefreshing(false);
+      if (reason === "manual") {
+        setIsManualRefreshing(false);
+      }
     }
   }, []);
 
+  const pollEnabled = useMemo(() => {
+    return ["overview", "webhooks", "dlq", "reconciliation"].includes(route.page);
+  }, [route.page]);
+
+  usePolling(
+    async () => {
+      await refreshData();
+    },
+    2500,
+    pollEnabled,
+  );
+
   useEffect(() => {
-    void refreshData();
+    const run = async () => {
+      setIsLoading(true);
+      setError(null);
+      await refreshData("background");
+    };
+    void run();
   }, [refreshData]);
-
-  useEffect(() => {
-    const autoRefreshPages = new Set<RouteState["page"]>(["overview", "webhooks", "dlq", "reconciliation"]);
-    if (!autoRefreshPages.has(route.page)) {
-      return;
-    }
-
-    const intervalId = window.setInterval(() => {
-      if (document.visibilityState !== "visible") {
-        return;
-      }
-      void refreshData();
-    }, 2500);
-
-    return () => window.clearInterval(intervalId);
-  }, [route.page, refreshData]);
 
   useEffect(() => {
     const onPopState = () => setRoute(parseRoute(window.location.pathname));
     window.addEventListener("popstate", onPopState);
     return () => window.removeEventListener("popstate", onPopState);
   }, []);
+
+  useEffect(() => {
+    if (!actionMessage) {
+      return;
+    }
+    const timeoutId = window.setTimeout(() => setActionMessage(null), 3200);
+    return () => window.clearTimeout(timeoutId);
+  }, [actionMessage]);
+
+  useEffect(() => {
+    setActionMessage(null);
+  }, [route.page]);
 
   function navigate(path: string) {
     window.history.pushState({}, "", path);
@@ -173,14 +202,14 @@ export function App() {
           to_account_id: destination.id,
           currency_code: "INR",
           amount_minor: 1250,
-          description: "Demo transfer from the overview page",
+          description: "Demo transfer from control center",
         },
         "overview-demo-transfer",
       );
       setActionMessage(`Transfer posted: ${result.id}`);
-      await refreshData();
+      await refreshData("action");
     } catch (exception) {
-      setActionMessage(exception instanceof Error ? exception.message : "Transfer failed");
+      setActionMessage(toUserMessage(exception, "Transfer failed"));
     }
   }
 
@@ -188,9 +217,9 @@ export function App() {
     try {
       await postDemoReset();
       setActionMessage("Demo reset complete.");
-      await refreshData();
+      await refreshData("action");
     } catch (exception) {
-      setActionMessage(exception instanceof Error ? exception.message : "Demo reset failed");
+      setActionMessage(toUserMessage(exception, "Demo reset failed"));
     }
   }
 
@@ -199,27 +228,27 @@ export function App() {
       const report = await postReconcileRun();
       setLatestReconcile(report);
       setActionMessage(`Reconciliation run ${report.run_id} completed.`);
-      await refreshData();
+      await refreshData("action");
     } catch (exception) {
-      setActionMessage(exception instanceof Error ? exception.message : "Reconciliation failed");
+      setActionMessage(toUserMessage(exception, "Reconciliation failed"));
     }
   }
 
   return (
-    <div className="app-shell">
-      <aside className="sidebar">
-        <div className="brand-block">
-          <span className="brand-kicker">fintech demo</span>
+    <div className="ui-app">
+      <aside className="ui-sidebar">
+        <div className="ui-brand">
+          <span className="ui-kicker">fintech demo</span>
           <h1>payments-core</h1>
-          <p>Ledger-first payments backend with retry-safe flows.</p>
+          <p>Operational control plane for ledger, webhooks, and reconciliation.</p>
         </div>
 
-        <nav className="nav-list">
+        <nav className="ui-nav">
           {pages.map((item) => (
             <button
               key={item.key}
               type="button"
-              className={route.page === item.key || (item.key === "accounts" && route.page === "account-detail") ? "nav-item active" : "nav-item"}
+              className={route.page === item.key || (item.key === "accounts" && route.page === "account-detail") ? "ui-nav-item active" : "ui-nav-item"}
               onClick={() => navigate(item.path)}
             >
               {item.label}
@@ -227,52 +256,58 @@ export function App() {
           ))}
         </nav>
 
-        <div className="sidebar-footer">
-          <button className="ghost-button" type="button" onClick={() => void refreshData()}>
-            Refresh data
-          </button>
-          <button className="primary-button" type="button" onClick={() => void runSampleTransfer()}>
-            Run sample transfer
-          </button>
-          <button className="ghost-button" type="button" onClick={() => void resetDemoData()}>
-            Reset demo
-          </button>
-          <button className="ghost-button" type="button" onClick={() => void runReconciliation()}>
-            Run reconciliation
-          </button>
-          <p className="helper-text">Webhooks and DLQ controls are now live for Week 3 reliability scenarios.</p>
+        <Card
+          title="Quick actions"
+          subtitle="Safe operator shortcuts"
+          className="ui-card"
+        >
+          <div className="ui-toolbar">
+            <Button variant="ghost" onClick={() => void refreshData("manual")} loading={isManualRefreshing}>
+              Refresh data
+            </Button>
+            <Button variant="secondary" onClick={() => void runSampleTransfer()}>
+              Run sample transfer
+            </Button>
+            <Button variant="danger" onClick={() => void resetDemoData()}>
+              Reset demo
+            </Button>
+            <Button variant="primary" onClick={() => void runReconciliation()}>
+              Run reconciliation
+            </Button>
+          </div>
+        </Card>
+
+        <div className="ui-footer">
+          <div>API: {import.meta.env.VITE_API_URL ?? "http://localhost:18000"}</div>
+          <div>{lastUpdatedAt ? `Updated ${lastUpdatedAt.toLocaleTimeString()}` : "Waiting for first sync"}</div>
         </div>
       </aside>
 
-      <main className="content-panel">
-        <header className="topbar">
+      <main className="ui-main">
+        <header className="ui-header">
           <div>
-            <p className="section-label">Week 3 dashboard</p>
-            <h2>Operational view for the payments core</h2>
+            <span className="ui-kicker">Week 4 dashboard</span>
+            <h2>Payments operations console</h2>
+            <p className="ui-subtitle">Live observability and controls for demo flows.</p>
           </div>
-          <div className="status-pill">{isLoading ? "Syncing" : "Live"}</div>
+          <Button variant="ghost" loading={isRefreshing}>
+            {isRefreshing ? "Syncing" : "Live"}
+          </Button>
         </header>
 
-        {error ? <div className="alert-card">{error}</div> : null}
-        {actionMessage ? <div className="alert-card soft">{actionMessage}</div> : null}
+        {error ? <Notice variant="error">{error}</Notice> : null}
+        {actionMessage ? <Notice variant="success">{actionMessage}</Notice> : null}
 
-        <section className="kpi-grid">
-          <article className="kpi-card">
-            <span>Accounts</span>
-            <strong>{metrics.accounts}</strong>
-          </article>
-          <article className="kpi-card">
-            <span>Transactions</span>
-            <strong>{metrics.transactions}</strong>
-          </article>
-          <article className="kpi-card">
-            <span>Balanced tx</span>
-            <strong>{metrics.balancedTransactions}</strong>
-          </article>
-          <article className="kpi-card">
-            <span>Total available</span>
-            <strong>{metrics.totalAvailable}</strong>
-          </article>
+        <section className="ui-grid-4">
+          {[{ label: "Accounts", value: metrics.accounts }, { label: "Transactions", value: metrics.transactions }, { label: "Balanced tx", value: metrics.balancedTransactions }, { label: "Total available", value: metrics.totalAvailable }].map((item) => (
+            <Card key={item.label}>
+              {isLoading ? <Skeleton height={34} /> : null}
+              <div className="ui-stat">
+                <span className="ui-stat__label">{item.label}</span>
+                <strong className="ui-stat__value">{item.value}</strong>
+              </div>
+            </Card>
+          ))}
         </section>
 
         {route.page === "overview" ? <OverviewPage accounts={accounts} transactions={transactions} stats={demoStats} onResetDemo={resetDemoData} onRunReconciliation={runReconciliation} /> : null}

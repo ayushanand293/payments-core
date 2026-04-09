@@ -1,4 +1,4 @@
-import { useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import {
   postInjectFailure,
   postWebhookGateway,
@@ -6,6 +6,16 @@ import {
   type AccountSummary,
   type WebhookEventSummary,
 } from "../api/client";
+import { toUserMessage } from "../api/errors";
+import { Badge, statusVariant } from "../components/ui/Badge";
+import { Button } from "../components/ui/Button";
+import { Card } from "../components/ui/Card";
+import { Input } from "../components/ui/Input";
+import { JsonViewer } from "../components/ui/JsonViewer";
+import { Modal } from "../components/ui/Modal";
+import { Notice } from "../components/ui/Notice";
+import { Select } from "../components/ui/Select";
+import { Table, type TableColumn } from "../components/ui/Table";
 
 type Props = {
   accounts: AccountSummary[];
@@ -23,10 +33,37 @@ export function WebhooksPage({ accounts, events, refresh }: Props) {
   const [amountMinor, setAmountMinor] = useState("500");
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
+  const [sortKey, setSortKey] = useState<"event_id" | "status" | "attempts" | "created_at">("created_at");
   const [loadingEventId, setLoadingEventId] = useState<string | null>(null);
+  const [selectedEvent, setSelectedEvent] = useState<WebhookEventSummary | null>(null);
+  const [pendingInjectEventId, setPendingInjectEventId] = useState<string | null>(null);
 
   const accountMap = useMemo(() => new Map(accounts.map((account) => [account.id, account])), [accounts]);
-  const sortedEvents = useMemo(() => [...events].sort((a, b) => String(b.created_at).localeCompare(String(a.created_at))), [events]);
+  const sortedEvents = useMemo(() => {
+    const next = [...events];
+    next.sort((a, b) => {
+      let delta = 0;
+      if (sortKey === "event_id") delta = a.event_id.localeCompare(b.event_id);
+      if (sortKey === "status") delta = a.status.localeCompare(b.status);
+      if (sortKey === "attempts") delta = a.attempts - b.attempts;
+      if (sortKey === "created_at") delta = String(a.created_at).localeCompare(String(b.created_at));
+      return sortDirection === "asc" ? delta : -delta;
+    });
+    return next;
+  }, [events, sortDirection, sortKey]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const eventIdParam = params.get("eventId");
+    if (!eventIdParam) {
+      return;
+    }
+    const matched = events.find((event) => event.event_id === eventIdParam);
+    if (matched) {
+      setSelectedEvent(matched);
+    }
+  }, [events]);
 
   async function submitGatewayEvent(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -60,7 +97,7 @@ export function WebhooksPage({ accounts, events, refresh }: Props) {
       setEventId(randomEventId());
       await refresh();
     } catch (exception) {
-      setError(exception instanceof Error ? exception.message : "Webhook ingest failed");
+      setError(toUserMessage(exception, "Webhook ingest failed"));
     }
   }
 
@@ -73,7 +110,7 @@ export function WebhooksPage({ accounts, events, refresh }: Props) {
       setMessage(`Replay queued for ${eventIdValue}`);
       await refresh();
     } catch (exception) {
-      setError(exception instanceof Error ? exception.message : "Replay failed");
+      setError(toUserMessage(exception, "Replay failed"));
     } finally {
       setLoadingEventId(null);
     }
@@ -87,87 +124,116 @@ export function WebhooksPage({ accounts, events, refresh }: Props) {
       await postInjectFailure(eventIdValue);
       setMessage(`Fail-once injected for ${eventIdValue}`);
     } catch (exception) {
-      setError(exception instanceof Error ? exception.message : "Inject failure failed");
+      setError(toUserMessage(exception, "Inject failure failed"));
     } finally {
       setLoadingEventId(null);
     }
   }
 
+  const columns: TableColumn<WebhookEventSummary>[] = [
+    {
+      key: "event_id",
+      header: "Event id",
+      sortable: true,
+      render: (item) => (
+        <button className="ui-button ui-button--ghost" type="button" onClick={() => setSelectedEvent(item)}>
+          {item.event_id}
+        </button>
+      ),
+    },
+    { key: "type", header: "Type", render: (item) => item.event_type },
+    { key: "status", header: "Status", sortable: true, render: (item) => <Badge variant={statusVariant(item.status)}>{item.status}</Badge> },
+    { key: "attempts", header: "Attempts", sortable: true, render: (item) => item.attempts },
+    { key: "created_at", header: "Received", sortable: true, render: (item) => (item.created_at ? new Date(item.created_at).toLocaleString() : "-") },
+    {
+      key: "actions",
+      header: "Actions",
+      render: (item) => {
+        const replayable = item.status === "FAILED" || item.status === "DLQ";
+        return (
+          <div style={{ display: "flex", gap: "var(--space-2)" }}>
+            <Button variant="secondary" disabled={!replayable || loadingEventId === item.event_id} onClick={() => void replay(item.event_id)}>
+              Replay
+            </Button>
+            <Button variant="danger" disabled={loadingEventId === item.event_id} onClick={() => setPendingInjectEventId(item.event_id)}>
+              Inject fail-once
+            </Button>
+          </div>
+        );
+      },
+    },
+  ];
+
+  function onSort(key: string) {
+    if (key !== "event_id" && key !== "status" && key !== "attempts" && key !== "created_at") {
+      return;
+    }
+    if (sortKey === key) {
+      setSortDirection((prev) => (prev === "asc" ? "desc" : "asc"));
+    } else {
+      setSortKey(key);
+      setSortDirection("asc");
+    }
+  }
+
   return (
-    <section className="page-stack">
-      <div className="panel">
-        <div className="panel-header">
-          <h3>Gateway ingest</h3>
-          <span>Creates a demo.fund webhook and queues worker processing.</span>
-        </div>
-        <form className="hold-form" onSubmit={(event) => void submitGatewayEvent(event)}>
-          <label>
-            <span>Event id</span>
-            <input value={eventId} onChange={(next) => setEventId(next.target.value)} />
-          </label>
-          <label>
-            <span>Account</span>
-            <select value={accountId} onChange={(next) => setAccountId(next.target.value)}>
-              {accounts.map((account) => (
-                <option key={account.id} value={account.id}>
-                  {account.name} ({account.currency_code})
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            <span>Amount (minor)</span>
-            <input value={amountMinor} onChange={(next) => setAmountMinor(next.target.value)} />
-          </label>
-          <button className="primary-button" type="submit">
-            Send webhook
-          </button>
+    <section style={{ display: "grid", gap: "var(--space-4)" }}>
+      <Card title="Gateway ingest" subtitle="Creates a demo.fund webhook and queues worker processing.">
+        <form className="ui-form-grid" onSubmit={(event) => void submitGatewayEvent(event)}>
+          <Input label="Event id" value={eventId} onChange={(next) => setEventId(next.target.value)} />
+          <Select label="Account" value={accountId} onChange={(next) => setAccountId(next.target.value)}>
+            {accounts.map((account) => (
+              <option key={account.id} value={account.id}>{account.name} ({account.currency_code})</option>
+            ))}
+          </Select>
+          <Input label="Amount (minor)" value={amountMinor} onChange={(next) => setAmountMinor(next.target.value)} />
+          <Button variant="primary" type="submit">Send webhook</Button>
         </form>
-      </div>
+      </Card>
 
-      {error ? <div className="alert-card">{error}</div> : null}
-      {message ? <div className="alert-card soft">{message}</div> : null}
+      {error ? <Notice variant="error">{error}</Notice> : null}
+      {message ? <Notice variant="success">{message}</Notice> : null}
 
-      <div className="panel">
-        <div className="panel-header">
-          <h3>Webhook events</h3>
-          <span>Retry policy: 1, 2, 4, 8, 16 seconds then DLQ.</span>
-        </div>
-        <div className="table-card">
-          {sortedEvents.map((item) => {
-            const replayable = item.status === "FAILED" || item.status === "DLQ";
-            return (
-              <div key={item.event_id} className="table-row static-row">
-                <div>
-                  <strong>{item.event_id}</strong>
-                  <span>
-                    {item.event_type} · {item.status} · attempts {item.attempts}
-                  </span>
-                  {item.last_error ? <span>{item.last_error}</span> : null}
-                </div>
-                <div className="row-actions">
-                  <button
-                    className="inline-action-button"
-                    type="button"
-                    disabled={!replayable || loadingEventId === item.event_id}
-                    onClick={() => void replay(item.event_id)}
-                  >
-                    Replay
-                  </button>
-                  <button
-                    className="inline-action-button"
-                    type="button"
-                    disabled={loadingEventId === item.event_id}
-                    onClick={() => void injectFailure(item.event_id)}
-                  >
-                    Inject fail-once
-                  </button>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
+      <Card title="Webhook events" subtitle="Retry policy: 1, 2, 4, 8, 16 seconds then DLQ.">
+        <Table
+          columns={columns}
+          rows={sortedEvents}
+          rowKey={(row) => row.event_id}
+          emptyState="No webhook events yet."
+          onSort={onSort}
+          sortKey={sortKey}
+          sortDirection={sortDirection}
+        />
+      </Card>
+
+      <Modal
+        open={Boolean(selectedEvent)}
+        title="Webhook event details"
+        onClose={() => setSelectedEvent(null)}
+        footer={<Button variant="ghost" onClick={() => setSelectedEvent(null)}>Close</Button>}
+      >
+        {selectedEvent ? <JsonViewer value={selectedEvent} /> : null}
+      </Modal>
+
+      <Modal
+        open={Boolean(pendingInjectEventId)}
+        title="Inject fail-once"
+        onClose={() => setPendingInjectEventId(null)}
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setPendingInjectEventId(null)}>Cancel</Button>
+            <Button variant="danger" onClick={() => {
+              const value = pendingInjectEventId;
+              setPendingInjectEventId(null);
+              if (value) {
+                void injectFailure(value);
+              }
+            }}>Confirm inject</Button>
+          </>
+        }
+      >
+        <p>This marks the selected event to fail once on next processing attempt.</p>
+      </Modal>
     </section>
   );
 }
