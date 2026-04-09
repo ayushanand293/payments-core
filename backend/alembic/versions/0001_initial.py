@@ -21,6 +21,7 @@ transaction_type = postgresql.ENUM("TRANSFER", "DEPOSIT", "HOLD_CAPTURE", name="
 transaction_status = postgresql.ENUM("POSTED", "FAILED", name="transaction_status", create_type=False)
 ledger_entry_direction = postgresql.ENUM("DEBIT", "CREDIT", name="ledger_entry_direction", create_type=False)
 hold_status = postgresql.ENUM("AUTHORIZED", "CAPTURED", "RELEASED", "EXPIRED", name="hold_status", create_type=False)
+webhook_event_status = postgresql.ENUM("RECEIVED", "PROCESSING", "PROCESSED", "FAILED", "DLQ", name="webhook_event_status", create_type=False)
 
 
 def upgrade() -> None:
@@ -30,6 +31,7 @@ def upgrade() -> None:
     transaction_status.create(bind, checkfirst=True)
     ledger_entry_direction.create(bind, checkfirst=True)
     hold_status.create(bind, checkfirst=True)
+    webhook_event_status.create(bind, checkfirst=True)
 
     op.create_table(
         "currencies",
@@ -141,8 +143,49 @@ def upgrade() -> None:
     op.create_index(op.f("ix_audit_events_entity_type"), "audit_events", ["entity_type"], unique=False)
     op.create_index(op.f("ix_audit_events_event_type"), "audit_events", ["event_type"], unique=False)
 
+    op.create_table(
+        "webhook_events",
+        sa.Column("event_id", sa.String(length=100), nullable=False),
+        sa.Column("event_type", sa.String(length=50), nullable=False),
+        sa.Column("payload_json", sa.JSON(), nullable=False),
+        sa.Column("payload_hash", sa.String(length=64), nullable=False),
+        sa.Column("status", webhook_event_status, nullable=False),
+        sa.Column("attempts", sa.Integer(), nullable=False),
+        sa.Column("last_error", sa.String(length=1000), nullable=True),
+        sa.Column("occurred_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.PrimaryKeyConstraint("event_id"),
+    )
+    op.create_index(op.f("ix_webhook_events_event_type"), "webhook_events", ["event_type"], unique=False)
+    op.create_index(op.f("ix_webhook_events_status"), "webhook_events", ["status"], unique=False)
+
+    op.create_table(
+        "dlq_events",
+        sa.Column("id", sa.Integer(), autoincrement=True, nullable=False),
+        sa.Column("event_id", sa.String(length=100), nullable=False),
+        sa.Column("event_type", sa.String(length=50), nullable=False),
+        sa.Column("payload_json", sa.JSON(), nullable=False),
+        sa.Column("attempts", sa.Integer(), nullable=False),
+        sa.Column("last_error", sa.Text(), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint("event_id"),
+    )
+    op.create_index(op.f("ix_dlq_events_event_id"), "dlq_events", ["event_id"], unique=True)
+    op.create_index(op.f("ix_dlq_events_event_type"), "dlq_events", ["event_type"], unique=False)
+
 
 def downgrade() -> None:
+    op.drop_index(op.f("ix_dlq_events_event_type"), table_name="dlq_events")
+    op.drop_index(op.f("ix_dlq_events_event_id"), table_name="dlq_events")
+    op.drop_table("dlq_events")
+
+    op.drop_index(op.f("ix_webhook_events_status"), table_name="webhook_events")
+    op.drop_index(op.f("ix_webhook_events_event_type"), table_name="webhook_events")
+    op.drop_table("webhook_events")
+
     op.drop_index(op.f("ix_audit_events_event_type"), table_name="audit_events")
     op.drop_index(op.f("ix_audit_events_entity_type"), table_name="audit_events")
     op.drop_index(op.f("ix_audit_events_entity_id"), table_name="audit_events")
@@ -175,3 +218,4 @@ def downgrade() -> None:
     transaction_status.drop(bind, checkfirst=True)
     transaction_type.drop(bind, checkfirst=True)
     account_type.drop(bind, checkfirst=True)
+    webhook_event_status.drop(bind, checkfirst=True)

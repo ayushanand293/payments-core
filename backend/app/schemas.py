@@ -105,3 +105,40 @@ class HoldOut(BaseModel):
     captured_tx_id: UUID | None = None
     created_at: datetime | None = None
     updated_at: datetime | None = None
+
+
+class WebhookGatewayIn(BaseModel):
+    event_id: str = Field(min_length=1, max_length=100)
+    event_type: str = Field(min_length=1, max_length=50)
+    occurred_at: datetime | None = None
+    payload: dict
+
+
+class WebhookGatewayAcceptedOut(BaseModel):
+    event_id: str
+    status: str
+    deduplicated: bool
+
+
+class WebhookEventOut(BaseModel):
+    event_id: str
+    event_type: str
+    status: str
+    attempts: int
+    last_error: str | None = None
+    occurred_at: datetime | None = None
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+
+
+class DlqEventOut(BaseModel):
+    event_id: str
+    event_type: str
+    attempts: int
+    last_error: str
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+
+
+class DemoInjectFailureCreate(BaseModel):
+    event_id: str = Field(min_length=1, max_length=100)

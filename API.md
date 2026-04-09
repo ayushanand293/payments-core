@@ -327,3 +327,133 @@ Used by the dashboard Transactions page when a row is selected.
 ## `GET /metrics`
 
 Prometheus-format metrics for scraping and local inspection.
+
+## `POST /webhooks/gateway`
+
+Gateway ingress endpoint for asynchronous webhook processing.
+
+Request:
+
+```json
+{
+  "event_id": "evt-123",
+  "event_type": "demo.fund",
+  "occurred_at": "2026-04-06T12:00:00Z",
+  "payload": {
+    "account_id": "8f4f4c2f-58c4-4f8e-89a8-3efc3a0f9f0a",
+    "currency_code": "INR",
+    "amount_minor": 700
+  }
+}
+```
+
+Response (`202`):
+
+```json
+{
+  "event_id": "evt-123",
+  "status": "RECEIVED",
+  "deduplicated": false
+}
+```
+
+Behavior:
+
+- Deduplicates by `event_id` + payload hash.
+- Same `event_id` with different payload returns `409` (`WEBHOOK_EVENT_ID_REUSED`).
+- New events are queued for worker processing.
+
+## `GET /webhooks/events`
+
+Returns webhook processing state.
+
+Response item fields:
+
+- `event_id`, `event_type`
+- `status`: `RECEIVED | PROCESSING | PROCESSED | FAILED | DLQ`
+- `attempts`, `last_error`, `occurred_at`, `created_at`, `updated_at`
+
+## `POST /webhooks/events/{event_id}/replay`
+
+Replays a failed webhook event.
+
+Response (`202`):
+
+```json
+{
+  "event_id": "evt-123",
+  "status": "RECEIVED",
+  "deduplicated": false
+}
+```
+
+Behavior:
+
+- Allowed only when status is `FAILED` or `DLQ`.
+- Resets attempts and requeues processing.
+
+## `GET /dlq`
+
+Returns events that exceeded retry limits.
+
+Response item fields:
+
+- `event_id`, `event_type`, `attempts`, `last_error`, `created_at`, `updated_at`
+
+## `POST /dlq/{event_id}/replay`
+
+Replays an event from dead-letter queue.
+
+Response (`202`) mirrors `/webhooks/events/{event_id}/replay`.
+
+## `POST /demo/inject-failure`
+
+Injects a one-time worker failure for a specific webhook event.
+
+Headers:
+
+```http
+X-DEMO-SECRET: change-me
+```
+
+Request:
+
+```json
+{
+  "event_id": "evt-123"
+}
+```
+
+Response:
+
+```json
+{
+  "event_id": "evt-123",
+  "mode": "fail-once"
+}
+```
+
+## `POST /demo/reset`
+
+Resets local demo data and reseeds currencies, accounts, escrow mapping, and opening balances.
+
+Headers:
+
+```http
+X-DEMO-SECRET: change-me
+```
+
+Response:
+
+```json
+{
+  "status": "ok",
+  "message": "Demo data reset complete"
+}
+```
+
+## Week 3 Retry Policy
+
+- Max attempts: `5`
+- Backoff schedule (seconds): `1, 2, 4, 8, 16`
+- On final failure: status moves to `DLQ` and a `dlq_events` row is created.
