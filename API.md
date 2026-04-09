@@ -457,3 +457,78 @@ Response:
 - Max attempts: `5`
 - Backoff schedule (seconds): `1, 2, 4, 8, 16`
 - On final failure: status moves to `DLQ` and a `dlq_events` row is created.
+
+## `POST /reconcile/run`
+
+Runs reconciliation checks, stores a row in `reconcile_runs`, and returns the full report.
+
+Response shape:
+
+```json
+{
+  "run_id": "2f8f79be-9962-4a9b-b7a1-4ef5429c6dd1",
+  "ran_at": "2026-04-09T12:00:00Z",
+  "summary": {
+    "unbalanced_transactions": 0,
+    "currency_mismatches": 0,
+    "invalid_holds": 0,
+    "negative_available_balances": 0,
+    "webhook_state_anomalies": 0,
+    "dlq_state_anomalies": 0
+  },
+  "details": {
+    "unbalanced_transactions": [],
+    "currency_mismatches": [],
+    "invalid_holds": [],
+    "negative_available_balances": [],
+    "webhook_state_anomalies": [],
+    "dlq_state_anomalies": []
+  }
+}
+```
+
+Checks include:
+
+- ledger balancing and transaction-entry currency consistency
+- hold state validity
+- negative available balances
+- webhook/DLQ state consistency anomalies
+
+## `GET /reconcile/latest`
+
+Returns the latest persisted reconciliation report.
+
+- `404` if no run exists yet
+
+## `GET /demo/stats`
+
+Returns dashboard KPI values for the control center.
+
+Response:
+
+```json
+{
+  "dlq_size": 1,
+  "processed_webhooks": 3,
+  "deduped_webhooks": 1,
+  "active_holds": 0,
+  "idempotency_replays": 2,
+  "last_reconcile_at": "2026-04-09T12:00:00Z",
+  "reconcile_runs_total": 1
+}
+```
+
+## Metrics
+
+`GET /metrics` exposes Prometheus metrics, including:
+
+- `payments_core_webhooks_received_total`
+- `payments_core_webhooks_deduped_total`
+- `payments_core_webhooks_processed_total`
+- `payments_core_webhooks_failed_total`
+- `payments_core_dlq_replays_total`
+- `payments_core_idempotency_replays_total`
+- `payments_core_reconcile_runs_total`
+- `payments_core_dlq_size`
+- `payments_core_active_holds`
+- `payments_core_webhooks_processing`

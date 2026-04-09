@@ -149,5 +149,68 @@ log "Replaying failure webhook ${failure_event} from DLQ"
 curl -fsS -X POST "${API_BASE}/dlq/${failure_event}/replay" >/dev/null
 wait_webhook_status "${failure_event}" "DLQ" 80
 
+log "Running reconciliation"
+reconcile_report=$(curl -fsS -X POST "${API_BASE}/reconcile/run")
+REPORT_JSON="$reconcile_report" python3 - <<'PY'
+import json
+import os
+import sys
+
+report = json.loads(os.environ["REPORT_JSON"])
+summary = report["summary"]
+expected_zero = [
+  "unbalanced_transactions",
+  "currency_mismatches",
+  "invalid_holds",
+  "negative_available_balances",
+  "webhook_state_anomalies",
+  "dlq_state_anomalies",
+]
+non_zero = {key: summary[key] for key in expected_zero if int(summary.get(key, 0)) != 0}
+if non_zero:
+  print(f"unexpected reconciliation anomalies: {non_zero}", file=sys.stderr)
+  sys.exit(1)
+print("reconciliation summary looks clean")
+PY
+
+log "Validating Week 4 metrics"
+metrics_text=$(curl -fsS "${API_BASE}/metrics")
+METRICS_TEXT="$metrics_text" python3 - <<'PY'
+import os
+import sys
+
+lines = os.environ["METRICS_TEXT"].splitlines()
+values = {}
+for line in lines:
+  if not line or line.startswith("#"):
+    continue
+  if " " not in line:
+    continue
+  name, value = line.split(" ", 1)
+  try:
+    values[name] = float(value)
+  except ValueError:
+    pass
+
+required_positive = {
+  "payments_core_webhooks_received_total": 2,
+  "payments_core_webhooks_processed_total": 1,
+  "payments_core_webhooks_failed_total": 1,
+  "payments_core_dlq_replays_total": 1,
+  "payments_core_reconcile_runs_total": 1,
+}
+
+for key, minimum in required_positive.items():
+  if values.get(key, 0.0) < minimum:
+    print(f"metric {key} expected >= {minimum}, got {values.get(key)}", file=sys.stderr)
+    sys.exit(1)
+
+if values.get("payments_core_dlq_size", 0.0) < 1:
+  print(f"metric payments_core_dlq_size expected >= 1, got {values.get('payments_core_dlq_size')}", file=sys.stderr)
+  sys.exit(1)
+
+print("metrics validation passed")
+PY
+
 log "Smoke demo complete"
 log "source_account_id=${source_account_id} destination_account_id=${destination_account_id} hold_id=${hold_id}"

@@ -383,6 +383,26 @@ select {
   background: rgba(255, 255, 255, 0.48);
 }
 
+.details-block {
+  border: 1px solid rgba(74, 56, 42, 0.16);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.82);
+  padding: 10px 12px;
+}
+
+.details-block summary {
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.details-json {
+  margin: 10px 0 0;
+  padding: 10px;
+  border-radius: 10px;
+  background: rgba(38, 24, 16, 0.06);
+  overflow-x: auto;
+}
+
 @media (max-width: 1080px) {
   .app-shell,
   .split-layout,

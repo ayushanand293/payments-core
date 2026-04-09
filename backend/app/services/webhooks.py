@@ -14,6 +14,11 @@ from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.core.idempotency import request_hash
+from app.core.metrics import (
+    mark_idempotency_replay,
+    mark_webhook_received,
+    refresh_runtime_gauges,
+)
 from app.models import (
     Account,
     DlqEvent,
@@ -66,6 +71,9 @@ def ingest_webhook_event(session: Session, payload: WebhookGatewayIn) -> Webhook
                 "Event id already exists with different payload",
                 status_code=409,
             )
+        mark_webhook_received(deduplicated=True)
+        mark_idempotency_replay()
+        refresh_runtime_gauges(session)
         return WebhookIngestResult(event=existing, created=False)
 
     event = WebhookEvent(
@@ -92,6 +100,8 @@ def ingest_webhook_event(session: Session, payload: WebhookGatewayIn) -> Webhook
     )
     session.commit()
     session.refresh(event)
+    mark_webhook_received(deduplicated=False)
+    refresh_runtime_gauges(session)
     return WebhookIngestResult(event=event, created=True)
 
 
@@ -127,6 +137,7 @@ def replay_webhook_event(session: Session, event_id: str) -> WebhookEvent:
     )
     session.commit()
     session.refresh(event)
+    refresh_runtime_gauges(session)
     return event
 
 
@@ -287,6 +298,8 @@ def process_webhook_event(
             payload_json={"event_id": event.event_id, "attempts": event.attempts},
         )
         session.commit()
+        # Metrics will be synced from DB by sync_derived_counters in the main process
+        refresh_runtime_gauges(session)
         return {"event_id": event.event_id, "state": "processed", "attempts": event.attempts}
     except (WebhookValidationError, RuntimeError, ValueError) as error:
         session.rollback()
@@ -296,6 +309,7 @@ def process_webhook_event(
 
         event.attempts += 1
         event.last_error = str(error)
+        # Metrics will be synced from DB by sync_derived_counters in the main process
 
         if event.attempts >= MAX_RETRY_ATTEMPTS:
             event.status = WebhookEventStatus.DLQ
@@ -323,6 +337,7 @@ def process_webhook_event(
                 payload_json={"event_id": event.event_id, "attempts": event.attempts, "error": event.last_error},
             )
             session.commit()
+            refresh_runtime_gauges(session)
             return {"event_id": event.event_id, "state": "dlq", "attempts": event.attempts, "error": event.last_error}
 
         event.status = WebhookEventStatus.FAILED
@@ -334,6 +349,7 @@ def process_webhook_event(
             payload_json={"event_id": event.event_id, "attempts": event.attempts, "error": event.last_error},
         )
         session.commit()
+        refresh_runtime_gauges(session)
         enqueue_retry(event.event_id, _next_backoff(event.attempts))
         return {"event_id": event.event_id, "state": "retry_scheduled", "attempts": event.attempts, "error": event.last_error}
 

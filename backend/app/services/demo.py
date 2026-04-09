@@ -6,6 +6,7 @@ from fastapi.encoders import jsonable_encoder
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.core.metrics import mark_transaction_created
 from app.models import Account, LedgerEntry, LedgerEntryDirection, Transaction, TransactionStatus, TransactionType
 from app.services.audit import write_audit_event
 
@@ -75,6 +76,7 @@ def fund_account(session: Session, *, account_id: UUID, amount: int, currency: s
             "created_at": transaction.created_at.isoformat() if transaction.created_at else None,
         },
     )
+    mark_transaction_created(transaction.type.value)
     session.commit()
 
     return jsonable_encoder(
