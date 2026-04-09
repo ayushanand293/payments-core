@@ -1,4 +1,4 @@
-const API_BASE = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
+const API_BASE = import.meta.env.VITE_API_URL ?? "http://localhost:18000";
 const DEMO_SECRET = import.meta.env.VITE_DEMO_SECRET ?? "change-me";
 
 type TransferPayload = {
@@ -15,13 +15,20 @@ type AccountPayload = {
   type: "USER" | "MERCHANT";
 };
 
+type HoldAuthorizePayload = {
+  account_id: string;
+  currency_code: string;
+  amount_minor: number;
+  ttl_seconds?: number;
+};
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`, {
+    ...init,
     headers: {
       "Content-Type": "application/json",
       ...(init?.headers ?? {}),
     },
-    ...init,
   });
 
   if (!response.ok) {
@@ -80,6 +87,18 @@ export type AccountStatement = {
 
 export type AccountDetail = AccountSummary;
 
+export type HoldSummary = {
+  id: string;
+  account_id: string;
+  currency_code: string;
+  amount_minor: number;
+  status: "AUTHORIZED" | "CAPTURED" | "RELEASED" | "EXPIRED";
+  expires_at: string;
+  captured_tx_id?: string | null;
+  created_at?: string;
+  updated_at?: string;
+};
+
 export async function getAccounts(): Promise<AccountSummary[]> {
   return request<AccountSummary[]>("/accounts");
 }
@@ -132,5 +151,39 @@ export async function postDemoFund(accountId: string, amount: number, currency: 
       amount,
       currency,
     }),
+  });
+}
+
+export async function getHolds(): Promise<HoldSummary[]> {
+  return request<HoldSummary[]>("/holds");
+}
+
+export async function postHoldAuthorize(payload: HoldAuthorizePayload, idempotencyKey: string): Promise<{ hold: HoldSummary }> {
+  return request<{ hold: HoldSummary }>("/holds/authorize", {
+    method: "POST",
+    headers: {
+      "Idempotency-Key": idempotencyKey,
+    },
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function postHoldCapture(holdId: string, currencyCode: string, idempotencyKey: string): Promise<{ hold: HoldSummary; transaction_id: string }> {
+  return request<{ hold: HoldSummary; transaction_id: string }>(`/holds/${holdId}/capture`, {
+    method: "POST",
+    headers: {
+      "Idempotency-Key": idempotencyKey,
+    },
+    body: JSON.stringify({ currency_code: currencyCode }),
+  });
+}
+
+export async function postHoldRelease(holdId: string, currencyCode: string, idempotencyKey: string): Promise<{ hold: HoldSummary }> {
+  return request<{ hold: HoldSummary }>(`/holds/${holdId}/release`, {
+    method: "POST",
+    headers: {
+      "Idempotency-Key": idempotencyKey,
+    },
+    body: JSON.stringify({ currency_code: currencyCode }),
   });
 }

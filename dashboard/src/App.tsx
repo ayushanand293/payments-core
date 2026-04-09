@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
-import { getAccounts, getCurrencies, getTransactions, postTransfer, type AccountSummary, type CurrencySummary, type TransactionSummary } from "./api/client";
+import { getAccounts, getCurrencies, getHolds, getTransactions, postTransfer, type AccountSummary, type CurrencySummary, type HoldSummary, type TransactionSummary } from "./api/client";
 import { AccountDetailPage } from "./pages/AccountDetail";
 import { AccountsPage } from "./pages/Accounts";
+import { HoldsPage } from "./pages/Holds";
 import { OverviewPage } from "./pages/Overview";
 import { TransactionsPage } from "./pages/Transactions";
 
-type RouteState = { page: "overview" | "accounts" | "transactions" | "account-detail"; accountId?: string };
+type RouteState = { page: "overview" | "accounts" | "holds" | "transactions" | "account-detail"; accountId?: string };
 
 function parseRoute(pathname: string): RouteState {
   if (pathname.startsWith("/accounts/") && pathname.length > "/accounts/".length) {
@@ -17,12 +18,16 @@ function parseRoute(pathname: string): RouteState {
   if (pathname === "/transactions") {
     return { page: "transactions" };
   }
+  if (pathname === "/holds") {
+    return { page: "holds" };
+  }
   return { page: "overview" };
 }
 
 const pages: Array<{ key: RouteState["page"]; label: string; path: string }> = [
   { key: "overview", label: "Overview", path: "/" },
   { key: "accounts", label: "Accounts", path: "/accounts" },
+  { key: "holds", label: "Holds", path: "/holds" },
   { key: "transactions", label: "Transactions", path: "/transactions" },
 ];
 
@@ -30,6 +35,7 @@ export function App() {
   const [route, setRoute] = useState<RouteState>(() => parseRoute(window.location.pathname));
   const [accounts, setAccounts] = useState<AccountSummary[]>([]);
   const [transactions, setTransactions] = useState<TransactionSummary[]>([]);
+  const [holds, setHolds] = useState<HoldSummary[]>([]);
   const [currencies, setCurrencies] = useState<CurrencySummary[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -39,10 +45,11 @@ export function App() {
     setIsLoading(true);
     setError(null);
     try {
-      const [nextAccounts, nextTransactions, nextCurrencies] = await Promise.all([getAccounts(), getTransactions(), getCurrencies()]);
+      const [nextAccounts, nextTransactions, nextCurrencies, nextHolds] = await Promise.all([getAccounts(), getTransactions(), getCurrencies(), getHolds()]);
       setAccounts(nextAccounts);
       setTransactions(nextTransactions);
       setCurrencies(nextCurrencies);
+      setHolds(nextHolds);
     } catch (exception) {
       setError(exception instanceof Error ? exception.message : "Unable to load dashboard data");
     } finally {
@@ -140,7 +147,7 @@ export function App() {
       <main className="content-panel">
         <header className="topbar">
           <div>
-            <p className="section-label">Week 1 dashboard</p>
+            <p className="section-label">Week 2 dashboard</p>
             <h2>Operational view for the payments core</h2>
           </div>
           <div className="status-pill">{isLoading ? "Syncing" : "Live"}</div>
@@ -170,6 +177,7 @@ export function App() {
 
         {route.page === "overview" ? <OverviewPage accounts={accounts} transactions={transactions} /> : null}
         {route.page === "accounts" ? <AccountsPage accounts={accounts} refresh={refreshData} onOpenAccount={(accountId) => navigate(`/accounts/${accountId}`)} /> : null}
+        {route.page === "holds" ? <HoldsPage accounts={accounts} holds={holds} refresh={refreshData} /> : null}
         {route.page === "transactions" ? <TransactionsPage transactions={transactions} refresh={refreshData} /> : null}
         {route.page === "account-detail" && route.accountId ? <AccountDetailPage accountId={route.accountId} onBack={() => navigate("/accounts")} /> : null}
       </main>
