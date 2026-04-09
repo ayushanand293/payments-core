@@ -5,6 +5,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
 from app.core.db import get_db
+from app.core.metrics import mark_dlq_replay
 from app.schemas import DlqEventOut, WebhookGatewayAcceptedOut
 from app.services.webhooks import WebhookValidationError, enqueue_webhook_processing, list_dlq_events, replay_webhook_event
 
@@ -34,6 +35,7 @@ def post_dlq_replay(event_id: str, session: Session = Depends(get_db)):
     except WebhookValidationError as error:
         return JSONResponse(status_code=error.status_code, content={"code": error.code, "message": str(error)})
 
+    mark_dlq_replay()
     enqueue_webhook_processing(event.event_id)
     return {
         "event_id": event.event_id,

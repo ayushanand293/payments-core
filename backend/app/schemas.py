@@ -53,6 +53,8 @@ class TransactionOut(BaseModel):
 
 
 class TransactionDetailOut(TransactionOut):
+    total_debit_minor: int | None = None
+    total_credit_minor: int | None = None
     ledger_entries: list[LedgerEntryOut]
 
 
@@ -142,3 +144,38 @@ class DlqEventOut(BaseModel):
 
 class DemoInjectFailureCreate(BaseModel):
     event_id: str = Field(min_length=1, max_length=100)
+
+
+class ReconcileSummaryOut(BaseModel):
+    unbalanced_transactions: int
+    currency_mismatches: int
+    invalid_holds: int
+    negative_available_balances: int
+    webhook_state_anomalies: int
+    dlq_state_anomalies: int
+
+
+class ReconcileDetailsOut(BaseModel):
+    unbalanced_transactions: list[dict]
+    currency_mismatches: list[dict]
+    invalid_holds: list[dict]
+    negative_available_balances: list[dict]
+    webhook_state_anomalies: list[dict]
+    dlq_state_anomalies: list[dict]
+
+
+class ReconcileReportOut(BaseModel):
+    run_id: str
+    ran_at: datetime
+    summary: ReconcileSummaryOut
+    details: ReconcileDetailsOut
+
+
+class DashboardStatsOut(BaseModel):
+    dlq_size: int
+    processed_webhooks: int
+    deduped_webhooks: int
+    active_holds: int
+    idempotency_replays: int
+    last_reconcile_at: datetime | None = None
+    reconcile_runs_total: int

@@ -32,7 +32,7 @@ services:
       APP_ENV: development
       DATABASE_URL: postgresql+psycopg://payments:payments@postgres:5432/payments
       REDIS_URL: redis://redis:6379/0
-      DEMO_SECRET: change-me
+      DEMO_SECRET: ${PAYMENTS_DEMO_SECRET:-change-me}
       AUTO_SEED: "true"
     depends_on:
       postgres:
@@ -51,7 +51,7 @@ services:
       APP_ENV: development
       DATABASE_URL: postgresql+psycopg://payments:payments@postgres:5432/payments
       REDIS_URL: redis://redis:6379/0
-      DEMO_SECRET: change-me
+      DEMO_SECRET: ${PAYMENTS_DEMO_SECRET:-change-me}
       AUTO_SEED: "true"
     depends_on:
       postgres:
@@ -66,6 +66,7 @@ services:
       context: ../dashboard
     environment:
       VITE_API_URL: http://localhost:${PAYMENTS_BACKEND_PORT:-18000}
+      VITE_DEMO_SECRET: ${PAYMENTS_DEMO_SECRET:-change-me}
     depends_on:
       backend:
         condition: service_started

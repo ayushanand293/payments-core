@@ -10,13 +10,14 @@ from app.api.routes.dlq import router as dlq_router
 from app.api.routes.health import router as health_router
 from app.api.routes.holds import router as holds_router
 from app.api.routes.metrics import router as metrics_router
+from app.api.routes.reconcile import router as reconcile_router
 from app.api.routes.transactions import router as transactions_router
 from app.api.routes.transfers import router as transfers_router
 from app.api.routes.webhooks import router as webhooks_router
 from app.core.config import Settings, get_settings
 from app.core.db import create_engine_and_session
 from app.core.logging import configure_logging
-from app.core.metrics import HTTP_REQUESTS
+from app.core.metrics import HTTP_REQUESTS, refresh_runtime_gauges
 from app.seed import seed_demo_data
 
 
@@ -49,9 +50,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.on_event("startup")
     def on_startup() -> None:
-        if settings.auto_seed:
-            with session_factory() as session:
+        with session_factory() as session:
+            if settings.auto_seed:
                 seed_demo_data(session)
+            refresh_runtime_gauges(session)
 
     app.include_router(health_router)
     app.include_router(accounts_router)
@@ -61,6 +63,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(transactions_router)
     app.include_router(webhooks_router)
     app.include_router(dlq_router)
+    app.include_router(reconcile_router)
     app.include_router(demo_router)
     app.include_router(metrics_router)
 

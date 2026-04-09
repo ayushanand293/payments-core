@@ -1,13 +1,16 @@
-import type { AccountSummary, TransactionSummary } from "../api/client";
+import type { AccountSummary, DemoStats, TransactionSummary } from "../api/client";
 
 type Props = {
   accounts: AccountSummary[];
   transactions: TransactionSummary[];
+  stats: DemoStats | null;
+  onResetDemo: () => Promise<void>;
+  onRunReconciliation: () => Promise<void>;
 };
 
 const currencyFormat = new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 });
 
-export function OverviewPage({ accounts, transactions }: Props) {
+export function OverviewPage({ accounts, transactions, stats, onResetDemo, onRunReconciliation }: Props) {
   const recentTransactions = transactions.slice(0, 5);
   const sampleBalances = accounts.slice(0, 3);
 
@@ -15,20 +18,51 @@ export function OverviewPage({ accounts, transactions }: Props) {
     <section className="page-stack">
       <div className="panel card-grid">
         <article className="info-card highlight">
-          <span>Active accounts</span>
-          <strong>{accounts.length}</strong>
-          <p>Balances are derived from immutable ledger entries.</p>
+          <span>DLQ size</span>
+          <strong>{stats?.dlq_size ?? 0}</strong>
+          <p>Tracks unresolved webhook failures.</p>
         </article>
         <article className="info-card">
-          <span>Processed transactions</span>
-          <strong>{transactions.length}</strong>
-          <p>Idempotency replays collapse into the same response.</p>
+          <span>Processed webhooks</span>
+          <strong>{stats?.processed_webhooks ?? 0}</strong>
+          <p>Successful asynchronous processing count.</p>
         </article>
         <article className="info-card">
-          <span>Seeded currencies</span>
-          <strong>INR / USD / EUR</strong>
-          <p>Minor units keep ledger math exact across currencies.</p>
+          <span>Deduped webhooks</span>
+          <strong>{stats?.deduped_webhooks ?? 0}</strong>
+          <p>Duplicate event submissions safely ignored.</p>
         </article>
+        <article className="info-card">
+          <span>Active holds</span>
+          <strong>{stats?.active_holds ?? 0}</strong>
+          <p>Currently authorized and unexpired holds.</p>
+        </article>
+        <article className="info-card">
+          <span>Idempotency replays</span>
+          <strong>{stats?.idempotency_replays ?? 0}</strong>
+          <p>Replay responses served from stored records.</p>
+        </article>
+        <article className="info-card">
+          <span>Last reconcile</span>
+          <strong>{stats?.last_reconcile_at ? new Date(stats.last_reconcile_at).toLocaleString() : "Not run"}</strong>
+          <p>Persisted run timestamp from reconcile_runs.</p>
+        </article>
+      </div>
+
+      <div className="panel">
+        <div className="panel-header">
+          <h3>Demo control center</h3>
+          <span>Fast reset and consistency checks</span>
+        </div>
+        <div className="row-actions">
+          <button className="primary-button" type="button" onClick={() => void onResetDemo()}>
+            Reset demo
+          </button>
+          <button className="ghost-button" type="button" onClick={() => void onRunReconciliation()}>
+            Run reconciliation
+          </button>
+          <span className="helper-text">Accounts: {accounts.length} · Transactions: {transactions.length}</span>
+        </div>
       </div>
 
       <div className="panel split-layout">

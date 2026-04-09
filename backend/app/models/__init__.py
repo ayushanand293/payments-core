@@ -6,5 +6,6 @@ from app.models.enums import AccountType, HoldStatus, LedgerEntryDirection, Tran
 from app.models.hold import Hold
 from app.models.idempotency_key import IdempotencyKey
 from app.models.ledger_entry import LedgerEntry
+from app.models.reconcile_run import ReconcileRun
 from app.models.transaction import Transaction
 from app.models.webhook_event import WebhookEvent

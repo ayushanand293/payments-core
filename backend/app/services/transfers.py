@@ -8,6 +8,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.idempotency import request_hash
+from app.core.metrics import mark_idempotency_replay, mark_transaction_created
 from app.models import Account, IdempotencyKey, LedgerEntry, LedgerEntryDirection, Transaction, TransactionStatus, TransactionType
 from app.schemas import TransferCreate
 from app.services.audit import write_audit_event
@@ -48,6 +49,7 @@ def create_transfer(session: Session, *, idempotency_key: str, transfer: Transfe
             raise IdempotencyConflictError("IDEMPOTENCY_KEY_REUSED")
         if existing.response_json is None:
             raise TransferValidationError("Existing idempotency record is incomplete", code="IDEMPOTENCY_INCOMPLETE")
+        mark_idempotency_replay()
         return TransferResult(payload=existing.response_json, created=False)
 
     source = session.get(Account, transfer.from_account_id)
@@ -124,6 +126,7 @@ def create_transfer(session: Session, *, idempotency_key: str, transfer: Transfe
             "created_at": transaction.created_at.isoformat() if transaction.created_at else None,
         },
     )
+    mark_transaction_created(transaction.type.value)
 
     payload = jsonable_encoder(
         {
@@ -167,6 +170,7 @@ def create_transfer(session: Session, *, idempotency_key: str, transfer: Transfe
         session.rollback()
         existing = session.get(IdempotencyKey, idempotency_key)
         if existing and existing.scope == scope and existing.request_hash == payload_hash and existing.response_json is not None:
+            mark_idempotency_replay()
             return TransferResult(payload=existing.response_json, created=False)
         raise IdempotencyConflictError("IDEMPOTENCY_KEY_REUSED") from error
 

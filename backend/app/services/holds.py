@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import select
 
 from app.core.idempotency import request_hash
+from app.core.metrics import mark_idempotency_replay, mark_transaction_created, refresh_runtime_gauges
 from app.models import (
     Account,
     EscrowAccount,
@@ -72,6 +73,7 @@ def _idempotent_replay_or_conflict(
         raise IdempotencyConflictError("Idempotency key was reused with a different request payload")
     if existing.response_json is None:
         raise HoldValidationError("IDEMPOTENCY_INCOMPLETE", "Existing idempotency record is incomplete")
+    mark_idempotency_replay()
     return HoldResult(payload=existing.response_json, created=False)
 
 
@@ -155,6 +157,7 @@ def list_holds(session: Session) -> list[dict]:
             changed = True
     if changed:
         session.commit()
+    refresh_runtime_gauges(session)
     return [_hold_payload(hold) for hold in holds]
 
 
@@ -236,8 +239,11 @@ def authorize_hold(session: Session, *, idempotency_key: str, payload: HoldAutho
         session.rollback()
         existing = session.get(IdempotencyKey, idempotency_key)
         if existing and existing.scope == scope and existing.request_hash == request_hash(scope, request_payload) and existing.response_json is not None:
+            mark_idempotency_replay()
             return HoldResult(payload=existing.response_json, created=False)
         raise IdempotencyConflictError("Idempotency key was reused with a different request payload") from error
+
+    refresh_runtime_gauges(session)
 
     return HoldResult(payload=response_payload, created=True)
 
@@ -316,6 +322,7 @@ def capture_hold(session: Session, *, hold_id: UUID, idempotency_key: str, paylo
             "captured_at": hold.updated_at.isoformat(),
         },
     )
+    mark_transaction_created(transaction.type.value)
     write_audit_event(
         session,
         event_type="TX_CREATED",
@@ -354,8 +361,11 @@ def capture_hold(session: Session, *, hold_id: UUID, idempotency_key: str, paylo
         session.rollback()
         existing = session.get(IdempotencyKey, idempotency_key)
         if existing and existing.scope == scope and existing.request_hash == request_hash(scope, request_payload) and existing.response_json is not None:
+            mark_idempotency_replay()
             return HoldResult(payload=existing.response_json, created=False)
         raise IdempotencyConflictError("Idempotency key was reused with a different request payload") from error
+
+    refresh_runtime_gauges(session)
 
     return HoldResult(payload=response_payload, created=True)
 
@@ -411,7 +421,10 @@ def release_hold(session: Session, *, hold_id: UUID, idempotency_key: str, paylo
         session.rollback()
         existing = session.get(IdempotencyKey, idempotency_key)
         if existing and existing.scope == scope and existing.request_hash == request_hash(scope, request_payload) and existing.response_json is not None:
+            mark_idempotency_replay()
             return HoldResult(payload=existing.response_json, created=False)
         raise IdempotencyConflictError("Idempotency key was reused with a different request payload") from error
+
+    refresh_runtime_gauges(session)
 
     return HoldResult(payload=response_payload, created=True)

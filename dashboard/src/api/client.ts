@@ -1,5 +1,14 @@
 const API_BASE = import.meta.env.VITE_API_URL ?? "http://localhost:18000";
-const DEMO_SECRET = import.meta.env.VITE_DEMO_SECRET ?? "change-me";
+const DEMO_SECRET = import.meta.env.VITE_DEMO_SECRET;
+
+function demoSecretHeaders(): Record<string, string> {
+  if (!DEMO_SECRET) {
+    throw new Error("Demo secret is not configured. Set VITE_DEMO_SECRET for demo actions.");
+  }
+  return {
+    "X-DEMO-SECRET": DEMO_SECRET,
+  };
+}
 
 type TransferPayload = {
   from_account_id: string;
@@ -84,6 +93,8 @@ export type TransactionSummary = {
 };
 
 export type TransactionDetail = TransactionSummary & {
+  total_debit_minor?: number;
+  total_credit_minor?: number;
   ledger_entries: LedgerEntry[];
 };
 
@@ -124,6 +135,41 @@ export type DlqEventSummary = {
   last_error: string;
   created_at?: string | null;
   updated_at?: string | null;
+};
+
+export type ReconcileSummary = {
+  unbalanced_transactions: number;
+  currency_mismatches: number;
+  invalid_holds: number;
+  negative_available_balances: number;
+  webhook_state_anomalies: number;
+  dlq_state_anomalies: number;
+};
+
+export type ReconcileDetails = {
+  unbalanced_transactions: Array<Record<string, unknown>>;
+  currency_mismatches: Array<Record<string, unknown>>;
+  invalid_holds: Array<Record<string, unknown>>;
+  negative_available_balances: Array<Record<string, unknown>>;
+  webhook_state_anomalies: Array<Record<string, unknown>>;
+  dlq_state_anomalies: Array<Record<string, unknown>>;
+};
+
+export type ReconcileReport = {
+  run_id: string;
+  ran_at: string;
+  summary: ReconcileSummary;
+  details: ReconcileDetails;
+};
+
+export type DemoStats = {
+  dlq_size: number;
+  processed_webhooks: number;
+  deduped_webhooks: number;
+  active_holds: number;
+  idempotency_replays: number;
+  last_reconcile_at?: string | null;
+  reconcile_runs_total: number;
 };
 
 export async function getAccounts(): Promise<AccountSummary[]> {
@@ -170,9 +216,7 @@ export async function postAccount(payload: AccountPayload): Promise<AccountDetai
 export async function postDemoFund(accountId: string, amount: number, currency: string): Promise<{ id: string }> {
   return request<{ id: string }>("/demo/fund", {
     method: "POST",
-    headers: {
-      "X-DEMO-SECRET": DEMO_SECRET,
-    },
+    headers: demoSecretHeaders(),
     body: JSON.stringify({
       account_id: accountId,
       amount,
@@ -245,9 +289,28 @@ export async function postDlqReplay(eventId: string): Promise<{ event_id: string
 export async function postInjectFailure(eventId: string): Promise<{ event_id: string; mode: string }> {
   return request<{ event_id: string; mode: string }>("/demo/inject-failure", {
     method: "POST",
-    headers: {
-      "X-DEMO-SECRET": DEMO_SECRET,
-    },
+    headers: demoSecretHeaders(),
     body: JSON.stringify({ event_id: eventId }),
   });
+}
+
+export async function postDemoReset(): Promise<{ status: string; message: string }> {
+  return request<{ status: string; message: string }>("/demo/reset", {
+    method: "POST",
+    headers: demoSecretHeaders(),
+  });
+}
+
+export async function getDemoStats(): Promise<DemoStats> {
+  return request<DemoStats>("/demo/stats");
+}
+
+export async function postReconcileRun(): Promise<ReconcileReport> {
+  return request<ReconcileReport>("/reconcile/run", {
+    method: "POST",
+  });
+}
+
+export async function getReconcileLatest(): Promise<ReconcileReport> {
+  return request<ReconcileReport>("/reconcile/latest");
 }
