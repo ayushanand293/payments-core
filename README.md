@@ -1,108 +1,213 @@
 # payments-core
 
-Mini Stripe/Razorpay-style payments backend demo.
+payments-core is a ledger-first payments platform demo that models core PSP behaviors with strong correctness guarantees:
 
-## Week 1-4
+- immutable double-entry ledger posting
+- idempotent write APIs
+- async webhook processing with retries and DLQ
+- reconciliation for operational safety
+- metrics and a control-plane dashboard for demo and debugging
 
-This milestone ships:
+The project is designed to feel like a compact internal fintech operations system rather than a toy CRUD app.
 
-- Postgres, Redis, backend, worker, and dashboard in Docker Compose
-- Currency, account, escrow, transaction, ledger, and idempotency schema
-- Idempotent transfer API with immutable double-entry ledger postings
-- Currency, account, statement, and transaction read APIs for the demo dashboard
-- Account creation for USER and MERCHANT accounts
-- Seeded demo data for INR, USD, and EUR
-- Tests for ledger balance and idempotency replay
-- Hold authorize/capture/release lifecycle with escrow movement
-- Webhook ingestion pipeline with dedupe and asynchronous worker processing
-- Exponential retry with dead-letter queue (`1, 2, 4, 8, 16` seconds; max 5 attempts)
-- Replay APIs for failed and DLQ events
-- Failure-injection endpoint for reliability demos
-- Dashboard pages for holds, webhooks, and DLQ operations
-- Reconciliation engine with persisted runs in `reconcile_runs`
-- Reconciliation APIs: `POST /reconcile/run`, `GET /reconcile/latest`
-- Demo control center KPIs from `GET /demo/stats`
-- Prometheus counters and gauges for webhook, DLQ, idempotency, and reconciliation flows
+## What You Get
 
-## Run locally
+### Core payment primitives
 
-1. Copy `.env.example` to `.env` if you want to override defaults.
-2. Start the stack with `make up`.
-3. Open the dashboard at `http://localhost:5174` and the API at `http://localhost:18000`.
+- Multi-currency account model (USER, MERCHANT, ESCROW)
+- Double-entry transactions (`DEPOSIT`, `TRANSFER`, `HOLD_CAPTURE`)
+- Balance derivation from ledger state (`posted`, `held`, `available`)
+- Idempotency keys for write safety and replay consistency
 
-## Demo secret configuration
+### Funds reservation lifecycle
 
-For Docker Compose, backend, worker, and dashboard all read the same secret via `PAYMENTS_DEMO_SECRET`.
+- Hold authorize/capture/release flow
+- Escrow movements tied to hold capture
+- State invariants checked by reconciliation
 
-- Local demo mode: set `PAYMENTS_DEMO_SECRET=change-me` (or any shared value) in `.env`.
-- The dashboard sends that value for demo-only actions (`/demo/reset`, `/demo/fund`, `/demo/inject-failure`).
+### Reliability pipeline
 
-For public deployment:
+- Webhook ingest endpoint with deduplication
+- Asynchronous worker processing via Celery + Redis
+- Exponential backoff retries: `1, 2, 4, 8, 16` seconds
+- Dead-letter queue after max retries
+- Replay endpoints for failed/DLQ events
+- Failure injection for deterministic reliability demos
 
-- Do not expose admin/demo controls to browsers with a shared secret.
-- Disable demo endpoints or protect them with server-side auth (session/JWT/role checks).
-- Do not ship `VITE_DEMO_SECRET` for internet-facing builds.
+### Reconciliation + observability
 
-## Week 3.5 local ops
+- On-demand reconciliation run endpoint
+- Persisted reconciliation history in `reconcile_runs`
+- Anomaly detection for ledger/holds/webhooks/DLQ consistency
+- Prometheus metrics endpoint (`/metrics`)
+- Dashboard control center with live operational KPIs
 
-### Fresh start (recommended for demos)
+### Frontend ops console
 
-1. Run `make reset-db`.
-2. Verify API health: `curl -s http://localhost:18000/health`.
-3. Optionally reseed on demand: `make seed`.
+- React + Vite + TypeScript dashboard
+- Unified component system (cards, tables, badges, modals, notices)
+- Polling for async-sensitive pages (visibility-aware)
+- Page set: Overview, Accounts, Account Detail, Transactions, Holds, Webhooks, DLQ, Reconciliation
 
-### Existing DB path
+## Architecture
 
-1. Start services: `make up`.
-2. Apply migrations explicitly: `make migrate`.
-3. Verify API health: `curl -s http://localhost:18000/health`.
+Run-time services are composed via Docker:
 
-### Helper commands
+- `backend`: FastAPI API server
+- `worker`: Celery worker for async webhook processing
+- `postgres`: relational storage
+- `redis`: queue/broker for async jobs
+- `dashboard`: React SPA
 
-- `make up` starts all services in detached mode.
-- `make migrate` runs `alembic upgrade head` in backend container.
-- `make reset-db` drops Postgres volume, then rebuilds and restarts the stack.
-- `make seed` calls `POST /demo/reset` with demo secret.
-- `make smoke` runs `scripts/smoke_demo.sh` for an end-to-end verification.
+High-level flow:
 
-Backend startup now waits for Postgres, then runs `alembic upgrade head`, then starts FastAPI.
+1. API write request comes in with idempotency key.
+2. Backend posts ledger entries atomically.
+3. Webhook events are ingested and queued.
+4. Worker processes events with retry + DLQ policy.
+5. Reconciliation validates consistency and stores report.
+6. Metrics and dashboard expose operational state.
 
-## Reconciliation Invariants
+See [ARCHITECTURE.md](ARCHITECTURE.md) for additional context.
 
-The reconciliation report validates:
+## Quick Start (Docker)
 
-- per-transaction debit/credit balance invariants
-- transaction currency versus ledger entry currency consistency
-- hold state consistency (`AUTHORIZED`, `CAPTURED`, `RELEASED`, `EXPIRED`)
-- negative available balances for `USER` and `MERCHANT` accounts
-- webhook/DLQ state consistency anomalies
+### Prerequisites
 
-Each run is stored in Postgres (`reconcile_runs`) and is queryable via `GET /reconcile/latest`.
+- Docker + Docker Compose
+
+### Start the stack
+
+1. Optional: copy `.env.example` to `.env` and adjust values.
+2. Run:
+
+```bash
+make up
+```
+
+3. Open:
+
+- Dashboard: `http://localhost:5174`
+- API: `http://localhost:18000`
+- Health: `http://localhost:18000/health`
+
+### Common commands
+
+- `make up` start all services in detached mode
+- `make down` stop services
+- `make migrate` apply Alembic migrations in backend container
+- `make reset-db` drop Postgres volume and rebuild stack
+- `make seed` call demo reset endpoint
+- `make smoke` run full end-to-end smoke verification
+
+## Key API Areas
+
+### Accounts and balances
+
+- `GET /accounts`
+- `POST /accounts`
+- `GET /accounts/{id}`
+- `GET /accounts/{id}/statement`
+
+### Transactions and transfers
+
+- `POST /transfers` (idempotent)
+- `GET /transactions`
+- `GET /transactions/{id}`
+
+### Holds
+
+- `POST /holds/authorize`
+- `POST /holds/{id}/capture`
+- `POST /holds/{id}/release`
+- `GET /holds`
+
+### Webhooks and DLQ
+
+- `POST /webhooks/gateway`
+- `GET /webhooks/events`
+- `POST /webhooks/events/{event_id}/replay`
+- `GET /dlq`
+- `POST /dlq/{event_id}/replay`
+- `POST /demo/inject-failure`
+
+### Reconciliation and ops
+
+- `POST /reconcile/run`
+- `GET /reconcile/latest`
+- `GET /demo/stats`
+- `GET /metrics`
+
+See [API.md](API.md) for full contracts and examples.
+
+## Reconciliation Scope
+
+Each reconciliation run checks:
+
+- debit/credit balance per transaction
+- transaction currency vs ledger entry currency
+- hold state integrity
+- negative available balances for non-system accounts
+- webhook state anomalies (including stale processing)
+- webhook/DLQ cross-state anomalies
+
+Runs are persisted and latest report is queryable.
 
 ## Metrics
 
-Key Prometheus metrics exposed by `GET /metrics`:
+Prometheus metrics include webhook lifecycle, DLQ activity, idempotency replay counts, reconciliation runs, and runtime gauges such as active holds and processing webhook count.
 
-- `payments_core_webhooks_received_total`
-- `payments_core_webhooks_deduped_total`
-- `payments_core_webhooks_processed_total`
-- `payments_core_webhooks_failed_total`
-- `payments_core_dlq_replays_total`
-- `payments_core_idempotency_replays_total`
-- `payments_core_reconcile_runs_total`
-- `payments_core_dlq_size`
-- `payments_core_active_holds`
-- `payments_core_webhooks_processing`
+Primary scrape endpoint:
 
-## Week 3 quick checks
+- `GET /metrics`
 
-1. Open the dashboard Webhooks page and send a `demo.fund` webhook.
-2. Confirm event transitions to `PROCESSED` in the Webhooks table.
-3. Inject fail-once for an event and replay it to observe retry behavior.
-4. Use the DLQ page to replay events that reached max retries.
+## Demo and Validation
 
-## Key docs
+For a scripted walkthrough and expected outputs:
 
-- [Architecture](ARCHITECTURE.md)
-- [API](API.md)
-- [Demo script](DEMO_SCRIPT.md)
+- [DEMO_SCRIPT.md](DEMO_SCRIPT.md)
+
+For an automated confidence check:
+
+```bash
+make smoke
+```
+
+Smoke covers reset, transfers, holds, webhooks, DLQ, reconciliation, and metrics validation.
+
+## Configuration
+
+Important env vars (see `.env.example`):
+
+- `PAYMENTS_BACKEND_PORT`
+- `PAYMENTS_DASHBOARD_PORT`
+- `PAYMENTS_POSTGRES_PORT`
+- `PAYMENTS_REDIS_PORT`
+- `PAYMENTS_DEMO_SECRET` (used by backend/worker/dashboard in compose)
+
+Demo secret notes:
+
+- Local demo: a shared secret is fine.
+- Public deployment: do not rely on browser-exposed shared demo secrets.
+- Prefer server-side auth/authorization for privileged demo/admin actions.
+
+## Repository Layout
+
+- `backend/` FastAPI app, services, models, migrations, tests
+- `dashboard/` React TypeScript UI
+- `infra/` Docker Compose topology
+- `scripts/` smoke and helper scripts
+- `API.md` endpoint-level documentation
+- `ARCHITECTURE.md` architecture overview
+- `DEMO_SCRIPT.md` demo runbook
+
+## Quality and Testing
+
+- Backend tests under `backend/tests/`
+- Reconciliation-specific tests included
+- Dashboard build checked with `npm run build`
+- Full-stack smoke path available via `make smoke`
+
+## License
+
+This project is released under the terms in [LICENSE](LICENSE).
