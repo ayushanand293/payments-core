@@ -1,7 +1,8 @@
 import type { AccountSummary, DemoStats, TransactionSummary } from "../api/client";
 import { Badge } from "../components/ui/Badge";
 import { Button } from "../components/ui/Button";
-import { Card } from "../components/ui/Card";
+import { Card, StatCard } from "../components/ui/Card";
+import { PageHeader } from "../components/ui/PageHeader";
 
 type Props = {
   accounts: AccountSummary[];
@@ -19,18 +20,19 @@ export function OverviewPage({ accounts, transactions, stats, onResetDemo, onRun
 
   return (
     <section style={{ display: "grid", gap: "var(--space-4)" }}>
+      <PageHeader
+        eyebrow="overview"
+        title="Operational snapshot"
+        description="A compact read on ledger volume, webhook health, holds, and reconciliation freshness."
+      />
+
       <div className="ui-grid-6">
         {[{ label: "DLQ size", value: stats?.dlq_size ?? 0 }, { label: "Processed webhooks", value: stats?.processed_webhooks ?? 0 }, { label: "Deduped webhooks", value: stats?.deduped_webhooks ?? 0 }, { label: "Active holds", value: stats?.active_holds ?? 0 }, { label: "Idempotency replays", value: stats?.idempotency_replays ?? 0 }, { label: "Last reconcile", value: stats?.last_reconcile_at ? new Date(stats.last_reconcile_at).toLocaleString() : "Not run" }].map((item) => (
-          <Card key={item.label}>
-            <div className="ui-stat">
-              <span className="ui-stat__label">{item.label}</span>
-              <strong className="ui-stat__value">{item.value}</strong>
-            </div>
-          </Card>
+          <StatCard key={item.label} label={item.label} value={item.value} />
         ))}
       </div>
 
-      <Card title="Demo control center" subtitle="Fast reset and consistency checks">
+      <Card className="ui-warning-panel" title="Privileged demo controls" subtitle="Local-only operator shortcuts. Production mode disables /demo/* unless explicitly enabled.">
         <div className="ui-toolbar">
           <Button variant="danger" type="button" onClick={() => void onResetDemo()}>
             Reset demo
@@ -48,7 +50,7 @@ export function OverviewPage({ accounts, transactions, stats, onResetDemo, onRun
           <Card title="Account snapshot" subtitle="Posted, held, available">
             <div style={{ display: "grid", gap: "var(--space-2)" }}>
               {sampleBalances.map((account) => (
-                <div key={account.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", border: "1px solid var(--border)", borderRadius: "var(--radius-md)", padding: "var(--space-3)" }}>
+                <div key={account.id} className="ui-row-card">
                   <div>
                     <strong>{account.name}</strong>
                     <div className="ui-subtitle">{account.currency_code} · {account.type}</div>
@@ -64,7 +66,7 @@ export function OverviewPage({ accounts, transactions, stats, onResetDemo, onRun
           <Card title="Recent transactions" subtitle="Balanced status visible per tx">
             <div style={{ display: "grid", gap: "var(--space-2)" }}>
               {recentTransactions.map((transaction) => (
-                <div key={transaction.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", border: "1px solid var(--border)", borderRadius: "var(--radius-md)", padding: "var(--space-3)" }}>
+                <div key={transaction.id} className="ui-row-card">
                   <div>
                     <strong>{transaction.description ?? transaction.type}</strong>
                     <div className="ui-subtitle">{transaction.currency_code} · {transaction.status}</div>

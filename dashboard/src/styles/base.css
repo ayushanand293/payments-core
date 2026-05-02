@@ -271,6 +271,8 @@ select.ui-input option { background: #101721; color: var(--text); }
 .ui-tab-list { display: inline-flex; gap: 6px; padding: 4px; border: 1px solid var(--panel-border); border-radius: var(--radius-md); background: rgba(255,255,255,0.035); }
 .ui-tab { border: 0; border-radius: 8px; padding: 8px 11px; background: transparent; color: var(--muted); cursor: pointer; font-weight: 650; }
 .ui-tab.active { color: #07101d; background: var(--accent); }
+.ui-details-panel { border: 1px solid var(--panel-border); border-radius: var(--radius-md); padding: 14px; background: rgba(255,255,255,0.025); }
+.ui-details-panel summary { cursor: pointer; color: var(--text); font-weight: 650; }
 
 @keyframes spin { to { transform: rotate(360deg); } }
 @keyframes pulse { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }

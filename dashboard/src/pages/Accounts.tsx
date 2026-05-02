@@ -6,6 +6,7 @@ import { Card } from "../components/ui/Card";
 import { Input } from "../components/ui/Input";
 import { Modal } from "../components/ui/Modal";
 import { Notice } from "../components/ui/Notice";
+import { PageHeader } from "../components/ui/PageHeader";
 import { Select } from "../components/ui/Select";
 import { Table, type TableColumn } from "../components/ui/Table";
 
@@ -135,20 +136,17 @@ export function AccountsPage({ accounts, refresh, onOpenAccount }: Props) {
 
   return (
     <section style={{ display: "grid", gap: "var(--space-4)" }}>
+      <PageHeader
+        eyebrow="accounts"
+        title="Accounts"
+        description="Search balances, filter by currency, and open account detail routes."
+        actions={<Button variant="primary" onClick={() => setCreateOpen(true)}>Create account</Button>}
+      />
+
       {error ? <Notice variant="error">{error}</Notice> : null}
       {message ? <Notice variant="success">{message}</Notice> : null}
 
-      <Card title="Accounts" subtitle="Browse, filter, and open account detail routes" actions={<Button variant="primary" onClick={() => setCreateOpen(true)}>Create account</Button>}>
-        <div className="ui-toolbar" style={{ marginBottom: "var(--space-3)" }}>
-          <Input label="Search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search by account name" />
-          <Select label="Currency" value={currencyFilter} onChange={(event) => setCurrencyFilter(event.target.value)}>
-            <option value="ALL">All</option>
-            {currencies.map((entry) => (
-              <option key={entry.code} value={entry.code}>{entry.code}</option>
-            ))}
-          </Select>
-        </div>
-
+      <Card>
         <Table
           columns={columns}
           rows={filteredAccounts}
@@ -157,6 +155,17 @@ export function AccountsPage({ accounts, refresh, onOpenAccount }: Props) {
           onSort={onSort}
           sortKey={sortKey}
           sortDirection={sortDirection}
+          searchValue={search}
+          onSearchChange={setSearch}
+          searchPlaceholder="Search accounts"
+          actions={
+          <Select label="Currency" value={currencyFilter} onChange={(event) => setCurrencyFilter(event.target.value)}>
+            <option value="ALL">All</option>
+            {currencies.map((entry) => (
+              <option key={entry.code} value={entry.code}>{entry.code}</option>
+            ))}
+          </Select>
+          }
         />
       </Card>
 

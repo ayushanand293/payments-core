@@ -4,6 +4,7 @@ import { toUserMessage } from "../api/errors";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { Notice } from "../components/ui/Notice";
+import { PageHeader } from "../components/ui/PageHeader";
 import { Table, type TableColumn } from "../components/ui/Table";
 
 type Props = {
@@ -15,8 +16,14 @@ export function DlqPage({ events, refresh }: Props) {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loadingEventId, setLoadingEventId] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
 
-  const sortedEvents = useMemo(() => [...events].sort((a, b) => String(b.updated_at).localeCompare(String(a.updated_at))), [events]);
+  const sortedEvents = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    return [...events]
+      .filter((event) => !query || event.event_id.toLowerCase().includes(query) || event.event_type.toLowerCase().includes(query) || (event.last_error ?? "").toLowerCase().includes(query))
+      .sort((a, b) => String(b.updated_at).localeCompare(String(a.updated_at)));
+  }, [events, search]);
 
   async function replay(eventId: string) {
     setLoadingEventId(eventId);
@@ -57,15 +64,24 @@ export function DlqPage({ events, refresh }: Props) {
 
   return (
     <section style={{ display: "grid", gap: "var(--space-4)" }}>
+      <PageHeader
+        eyebrow="recovery"
+        title="Dead letter queue"
+        description="Events that exhausted retry policy and need operator attention."
+      />
+
       {error ? <Notice variant="error">{error}</Notice> : null}
       {message ? <Notice variant="success">{message}</Notice> : null}
 
-      <Card title="Dead letter queue" subtitle="Events moved after 5 failed attempts.">
+      <Card>
         <Table
           columns={columns}
           rows={sortedEvents}
           rowKey={(row) => row.event_id}
           emptyState="No DLQ events. Failures exceeding retry policy appear here."
+          searchValue={search}
+          onSearchChange={setSearch}
+          searchPlaceholder="Search DLQ events"
         />
       </Card>
     </section>

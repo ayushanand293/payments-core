@@ -6,6 +6,7 @@ import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { Input } from "../components/ui/Input";
 import { Notice } from "../components/ui/Notice";
+import { PageHeader } from "../components/ui/PageHeader";
 import { Select } from "../components/ui/Select";
 import { Table, type TableColumn } from "../components/ui/Table";
 
@@ -101,14 +102,15 @@ export function AccountDetailPage({ accountId, onBack }: Props) {
 
   return (
     <section style={{ display: "grid", gap: "var(--space-4)" }}>
+      <PageHeader
+        eyebrow="account detail"
+        title={account ? account.name : "Account detail"}
+        description={account ? `${account.type} account in ${account.currency_code}` : "Statement history and holds"}
+        actions={<Button type="button" variant="ghost" onClick={onBack}>Back to accounts</Button>}
+      />
       <Card
-        title={account ? `${account.name} (${account.currency_code})` : "Account detail"}
-        subtitle={account ? `Type: ${account.type}` : "Dedicated route view with statement history"}
-        actions={
-          <Button type="button" variant="ghost" onClick={onBack}>
-            Back to accounts
-          </Button>
-        }
+        title="Balances and activity"
+        subtitle="Demo funding, statement rows, and holds for this account."
       >
         <div className="ui-grid-3" style={{ marginBottom: "var(--space-4)" }}>
           <Card><div className="ui-stat"><span className="ui-stat__label">Posted</span><strong className="ui-stat__value">{account ? formatMinor.format(account.posted_balance_minor) : "-"}</strong></div></Card>
@@ -128,8 +130,10 @@ export function AccountDetailPage({ accountId, onBack }: Props) {
               <option value="100">100</option>
             </Select>
             <div style={{ display: "flex", gap: "var(--space-2)", alignItems: "end" }}>
-              <Button variant={tab === "statement" ? "primary" : "secondary"} onClick={() => setTab("statement")}>Statement</Button>
-              <Button variant={tab === "holds" ? "primary" : "secondary"} onClick={() => setTab("holds")}>Holds</Button>
+              <div className="ui-tab-list">
+                <button type="button" className={tab === "statement" ? "ui-tab active" : "ui-tab"} onClick={() => setTab("statement")}>Statement</button>
+                <button type="button" className={tab === "holds" ? "ui-tab active" : "ui-tab"} onClick={() => setTab("holds")}>Holds</button>
+              </div>
             </div>
           </div>
         ) : null}

@@ -14,6 +14,7 @@ import { Input } from "../components/ui/Input";
 import { JsonViewer } from "../components/ui/JsonViewer";
 import { Modal } from "../components/ui/Modal";
 import { Notice } from "../components/ui/Notice";
+import { PageHeader } from "../components/ui/PageHeader";
 import { Select } from "../components/ui/Select";
 import { Table, type TableColumn } from "../components/ui/Table";
 
@@ -38,10 +39,14 @@ export function WebhooksPage({ accounts, events, refresh }: Props) {
   const [loadingEventId, setLoadingEventId] = useState<string | null>(null);
   const [selectedEvent, setSelectedEvent] = useState<WebhookEventSummary | null>(null);
   const [pendingInjectEventId, setPendingInjectEventId] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
 
   const accountMap = useMemo(() => new Map(accounts.map((account) => [account.id, account])), [accounts]);
   const sortedEvents = useMemo(() => {
-    const next = [...events];
+    const query = search.trim().toLowerCase();
+    const next = events.filter((event) => {
+      return !query || event.event_id.toLowerCase().includes(query) || event.event_type.toLowerCase().includes(query) || event.status.toLowerCase().includes(query);
+    });
     next.sort((a, b) => {
       let delta = 0;
       if (sortKey === "event_id") delta = a.event_id.localeCompare(b.event_id);
@@ -51,7 +56,7 @@ export function WebhooksPage({ accounts, events, refresh }: Props) {
       return sortDirection === "asc" ? delta : -delta;
     });
     return next;
-  }, [events, sortDirection, sortKey]);
+  }, [events, search, sortDirection, sortKey]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -178,6 +183,12 @@ export function WebhooksPage({ accounts, events, refresh }: Props) {
 
   return (
     <section style={{ display: "grid", gap: "var(--space-4)" }}>
+      <PageHeader
+        eyebrow="webhooks"
+        title="Webhook pipeline"
+        description="Ingest, retry, replay, and inspect worker-backed gateway events."
+      />
+
       <Card title="Gateway ingest" subtitle="Creates a demo.fund webhook and queues worker processing.">
         <form className="ui-form-grid" onSubmit={(event) => void submitGatewayEvent(event)}>
           <Input label="Event id" value={eventId} onChange={(next) => setEventId(next.target.value)} />
@@ -203,6 +214,9 @@ export function WebhooksPage({ accounts, events, refresh }: Props) {
           onSort={onSort}
           sortKey={sortKey}
           sortDirection={sortDirection}
+          searchValue={search}
+          onSearchChange={setSearch}
+          searchPlaceholder="Search events"
         />
       </Card>
 
