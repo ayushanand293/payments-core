@@ -2,8 +2,9 @@ COMPOSE_FILE := infra/docker-compose.yml
 COMPOSE := docker compose -f $(COMPOSE_FILE)
 API_BASE ?= http://localhost:18000
 DEMO_SECRET ?= change-me
+PYTEST := $(if $(wildcard .venv/bin/pytest),.venv/bin/pytest,pytest)
 
-.PHONY: up migrate reset-db seed smoke down
+.PHONY: up migrate reset-db seed test build-dashboard ci smoke down
 
 up:
 	$(COMPOSE) up --build -d
@@ -19,6 +20,14 @@ seed:
 	curl -sS -X POST $(API_BASE)/demo/reset \
 		-H "X-DEMO-SECRET: $(DEMO_SECRET)" \
 		-H "Content-Type: application/json"
+
+test:
+	$(PYTEST)
+
+build-dashboard:
+	cd dashboard && npm run build
+
+ci: test build-dashboard
 
 smoke:
 	bash ./scripts/smoke_demo.sh
