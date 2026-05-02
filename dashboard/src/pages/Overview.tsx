@@ -1,4 +1,3 @@
-import type { CSSProperties } from "react";
 import type { AccountSummary, DemoStats, TransactionSummary } from "../api/client";
 import { Badge } from "../components/ui/Badge";
 import { Button } from "../components/ui/Button";
@@ -18,12 +17,17 @@ const currencyFormat = new Intl.NumberFormat("en-US", { maximumFractionDigits: 0
 export function OverviewPage({ accounts, transactions, stats, onResetDemo, onRunReconciliation }: Props) {
   const recentTransactions = transactions.slice(0, 5);
   const sampleBalances = accounts.slice(0, 3);
-  const primaryAccount = sampleBalances[0];
-  const secondaryAccount = sampleBalances[1];
   const processed = stats?.processed_webhooks ?? 0;
   const dlq = stats?.dlq_size ?? 0;
   const healthTotal = Math.max(processed + dlq, 1);
   const healthPercent = Math.round((processed / healthTotal) * 100);
+  const totalPosted = accounts.reduce((sum, account) => sum + account.posted_balance_minor, 0);
+  const totalHeld = accounts.reduce((sum, account) => sum + account.held_balance_minor, 0);
+  const totalAvailable = accounts.reduce((sum, account) => sum + account.available_balance_minor, 0);
+  const escrowAccounts = accounts.filter((account) => account.type === "ESCROW");
+  const escrowBalance = escrowAccounts.reduce((sum, account) => sum + account.posted_balance_minor, 0);
+  const balancedCount = transactions.filter((transaction) => transaction.balanced).length;
+  const reconcileLabel = stats?.last_reconcile_at ? new Date(stats.last_reconcile_at).toLocaleString() : "Not run";
 
   return (
     <section style={{ display: "grid", gap: "var(--space-4)" }}>
@@ -34,47 +38,37 @@ export function OverviewPage({ accounts, transactions, stats, onResetDemo, onRun
       />
 
       <div className="overview-showcase">
-        <Card className="overview-card overview-card--wallet" title="Accounts" subtitle={`${accounts.length} active ledgers`}>
-          <div className="mini-card-stack">
-            <div className="mini-credit-card mini-credit-card--light">
-              <span>Available</span>
-              <strong>{primaryAccount ? currencyFormat.format(primaryAccount.available_balance_minor) : "0"}</strong>
-              <small>{primaryAccount?.currency_code ?? "INR"} · {primaryAccount?.type ?? "USER"}</small>
-            </div>
-            <div className="mini-credit-card">
-              <span>Escrow-safe</span>
-              <strong>{secondaryAccount ? currencyFormat.format(secondaryAccount.available_balance_minor) : "0"}</strong>
-              <small>{secondaryAccount?.currency_code ?? "INR"} · {secondaryAccount?.type ?? "MERCHANT"}</small>
-            </div>
+        <Card className="overview-card" title="Ledger balances" subtitle={`${accounts.length} accounts across currencies`}>
+          <strong className="overview-card-number">{currencyFormat.format(totalAvailable)}</strong>
+          <div className="overview-metric-list">
+            <div><span>Posted</span><strong>{currencyFormat.format(totalPosted)}</strong></div>
+            <div><span>Held</span><strong>{currencyFormat.format(totalHeld)}</strong></div>
+            <div><span>Available</span><strong>{currencyFormat.format(totalAvailable)}</strong></div>
           </div>
         </Card>
 
-        <Card className="overview-card overview-card--ring">
-          <div className="ring-meter" style={{ "--ring-value": `${healthPercent}%` } as CSSProperties}>
-            <div>
-              <span>Webhook health</span>
-              <strong>{healthPercent}%</strong>
-            </div>
-          </div>
-          <div className="ring-caption">
-            <span>Processed {processed}</span>
-            <span>DLQ {dlq}</span>
+        <Card className="overview-card" title="Holds & escrow" subtitle="Funds reserved and captured by currency">
+          <strong className="overview-card-number">{currencyFormat.format(escrowBalance)}</strong>
+          <div className="overview-metric-list">
+            <div><span>Active holds</span><strong>{stats?.active_holds ?? 0}</strong></div>
+            <div><span>Escrow accounts</span><strong>{escrowAccounts.length}</strong></div>
+            <div><span>Held funds</span><strong>{currencyFormat.format(totalHeld)}</strong></div>
           </div>
         </Card>
 
-        <Card className="overview-card overview-card--home" title="Ledger home" subtitle="Main control state">
-          <strong className="oversized-number">{currencyFormat.format(accounts.reduce((sum, account) => sum + account.available_balance_minor, 0))}</strong>
-          <div className="compact-chip-grid">
-            {sampleBalances.map((account) => (
-              <div key={account.id} className="compact-chip">
-                <span>{account.name.split(" ").slice(0, 2).join(" ")}</span>
-                <strong>{currencyFormat.format(account.available_balance_minor)}</strong>
-              </div>
-            ))}
+        <Card className="overview-card" title="Webhook pipeline" subtitle="Async ingest, retry, DLQ, replay">
+          <div className="pipeline-meter">
+            <div className="pipeline-meter__bar"><span style={{ width: `${healthPercent}%` }} /></div>
+            <strong>{healthPercent}% processed</strong>
+          </div>
+          <div className="overview-metric-list">
+            <div><span>Processed</span><strong>{processed}</strong></div>
+            <div><span>Deduped</span><strong>{stats?.deduped_webhooks ?? 0}</strong></div>
+            <div><span>DLQ</span><strong>{dlq}</strong></div>
           </div>
         </Card>
 
-        <Card className="overview-card overview-card--chart" title="Transaction flow" subtitle={`${transactions.length} total`}>
+        <Card className="overview-card" title="Transaction flow" subtitle={`${transactions.length} immutable transactions`}>
           <div className="sparkline" aria-hidden="true">
             {Array.from({ length: 18 }).map((_, index) => (
               <span key={index} style={{ height: `${24 + ((index * 17 + transactions.length * 5) % 52)}%` }} />
@@ -82,43 +76,50 @@ export function OverviewPage({ accounts, transactions, stats, onResetDemo, onRun
           </div>
           <div className="chart-footer">
             <strong>{transactions.length}</strong>
-            <Badge variant="info">{transactions.filter((transaction) => transaction.balanced).length} balanced</Badge>
+            <Badge variant="info">{balancedCount} balanced</Badge>
           </div>
         </Card>
 
-        <Card className="overview-card overview-card--activity" title="Activity">
-          <div className="activity-dot-grid" aria-hidden="true">
-            {Array.from({ length: 42 }).map((_, index) => (
-              <span key={index} className={(index + transactions.length) % 7 === 0 ? "is-hot" : ""} />
-            ))}
+        <Card className="overview-card" title="Reconciliation" subtitle="Persisted consistency checks">
+          <strong className="overview-card-number">{reconcileLabel}</strong>
+          <div className="overview-metric-list">
+            <div><span>Runs</span><strong>{stats?.reconcile_runs_total ?? 0}</strong></div>
+            <div><span>Latest</span><strong>{stats?.last_reconcile_at ? "Stored" : "Pending"}</strong></div>
           </div>
-          <div className="activity-weekdays"><span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span><span>S</span></div>
+          <Button variant="primary" type="button" onClick={() => void onRunReconciliation()}>Run reconciliation</Button>
         </Card>
 
-        <Card className="overview-card overview-card--billing" title="Billing & invoice">
+        <Card className="overview-card" title="Idempotency safety" subtitle="Replay-safe writes and webhook dedupe">
+          <strong className="overview-card-number">{stats?.idempotency_replays ?? 0}</strong>
+          <div className="overview-metric-list">
+            <div><span>API replays</span><strong>{stats?.idempotency_replays ?? 0}</strong></div>
+            <div><span>Webhook dedupe</span><strong>{stats?.deduped_webhooks ?? 0}</strong></div>
+          </div>
+          <Badge variant="info">Duplicate-safe control plane</Badge>
+        </Card>
+
+        <Card className="overview-card overview-card--wide" title="Recent ledger events" subtitle="Latest posted activity">
           <div className="invoice-list">
-            {recentTransactions.length > 0 ? recentTransactions.map((transaction) => (
+            {recentTransactions.length > 0 ? recentTransactions.slice(0, 4).map((transaction) => (
               <div key={transaction.id} className="invoice-row">
                 <span>{new Date(transaction.created_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</span>
                 <strong>{transaction.description ?? transaction.type}</strong>
-                <Badge variant={transaction.balanced ? "info" : "warning"}>{transaction.balanced ? "Paid" : "Check"}</Badge>
+                <Badge variant={transaction.balanced ? "success" : "warning"}>{transaction.balanced ? "Balanced" : "Check"}</Badge>
               </div>
             )) : <p className="ui-subtitle">No posted transactions yet.</p>}
           </div>
         </Card>
 
-        <Card className="overview-card overview-card--exchange" title="Exchange">
-          <div className="exchange-box">
-            <span>Your send</span>
-            <strong>{currencyFormat.format(stats?.idempotency_replays ?? 0)}</strong>
-            <small>replays</small>
+        <Card className="overview-card overview-card--wide" title="Currency accounts" subtitle="Sample balances by operational role">
+          <div className="account-strip">
+            {sampleBalances.map((account) => (
+              <div key={account.id} className="compact-chip">
+                <span>{account.name}</span>
+                <strong>{currencyFormat.format(account.available_balance_minor)}</strong>
+                <small>{account.currency_code} · {account.type}</small>
+              </div>
+            ))}
           </div>
-          <div className="exchange-box">
-            <span>You received</span>
-            <strong>{currencyFormat.format(stats?.deduped_webhooks ?? 0)}</strong>
-            <small>dedupes</small>
-          </div>
-          <Button variant="primary" type="button" onClick={() => void onRunReconciliation()}>Reconcile</Button>
         </Card>
       </div>
 
