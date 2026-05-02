@@ -4,10 +4,10 @@
 
 :root {
   color-scheme: dark;
-  --bg: #0B0F14;
-  --panel: rgba(255, 255, 255, 0.04);
+  --bg: #030405;
+  --panel: rgba(255, 255, 255, 0.035);
   --panel-rgb: 255 255 255;
-  --panel-border: rgba(255, 255, 255, 0.08);
+  --panel-border: rgba(255, 255, 255, 0.095);
   --text: rgba(255, 255, 255, 0.92);
   --muted: rgba(255, 255, 255, 0.65);
   --accent: #7AA2F7;
@@ -16,8 +16,8 @@
   --warning: #d8c28b;
   --danger: #d99a9a;
   --radius-sm: 8px;
-  --radius-md: 10px;
-  --radius-lg: 14px;
+  --radius-md: 8px;
+  --radius-lg: 8px;
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
@@ -25,5 +25,5 @@
   --space-5: 20px;
   --space-6: 24px;
   --space-8: 32px;
-  --shadow-premium: 0 20px 50px rgba(0, 0, 0, 0.24);
+  --shadow-premium: 0 24px 70px rgba(0, 0, 0, 0.36);
 }
