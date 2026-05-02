@@ -1,5 +1,21 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  Activity,
+  Banknote,
+  BarChart3,
+  ChevronLeft,
+  ChevronRight,
+  Clock3,
+  CreditCard,
+  Database,
+  GitBranch,
+  LayoutDashboard,
+  Menu,
+  RefreshCw,
+  ShieldAlert,
+  WalletCards,
+} from "lucide-react";
+import {
   getAccounts,
   getCurrencies,
   getDemoStats,
@@ -22,8 +38,8 @@ import {
 } from "./api/client";
 import { toUserMessage } from "./api/errors";
 import { Button } from "./components/ui/Button";
-import { Card } from "./components/ui/Card";
-import { Notice } from "./components/ui/Notice";
+import { Card, StatCard } from "./components/ui/Card";
+import { Toast } from "./components/ui/Notice";
 import { Skeleton } from "./components/ui/Spinner";
 import { usePolling } from "./hooks/usePolling";
 import { AccountDetailPage } from "./pages/AccountDetail";
@@ -62,14 +78,14 @@ function parseRoute(pathname: string): RouteState {
   return { page: "overview" };
 }
 
-const pages: Array<{ key: RouteState["page"]; label: string; path: string }> = [
-  { key: "overview", label: "Overview", path: "/" },
-  { key: "accounts", label: "Accounts", path: "/accounts" },
-  { key: "holds", label: "Holds", path: "/holds" },
-  { key: "webhooks", label: "Webhooks", path: "/webhooks" },
-  { key: "dlq", label: "DLQ", path: "/dlq" },
-  { key: "reconciliation", label: "Reconciliation", path: "/reconciliation" },
-  { key: "transactions", label: "Transactions", path: "/transactions" },
+const pages: Array<{ key: RouteState["page"]; label: string; path: string; icon: typeof LayoutDashboard }> = [
+  { key: "overview", label: "Overview", path: "/", icon: LayoutDashboard },
+  { key: "accounts", label: "Accounts", path: "/accounts", icon: WalletCards },
+  { key: "holds", label: "Holds", path: "/holds", icon: CreditCard },
+  { key: "webhooks", label: "Webhooks", path: "/webhooks", icon: GitBranch },
+  { key: "dlq", label: "DLQ", path: "/dlq", icon: ShieldAlert },
+  { key: "reconciliation", label: "Reconciliation", path: "/reconciliation", icon: BarChart3 },
+  { key: "transactions", label: "Transactions", path: "/transactions", icon: Banknote },
 ];
 
 export function App() {
@@ -85,6 +101,8 @@ export function App() {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isManualRefreshing, setIsManualRefreshing] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
@@ -172,6 +190,7 @@ export function App() {
   function navigate(path: string) {
     window.history.pushState({}, "", path);
     setRoute(parseRoute(path));
+    setMobileNavOpen(false);
   }
 
   const metrics = useMemo(() => {
@@ -235,25 +254,33 @@ export function App() {
   }
 
   return (
-    <div className="ui-app">
-      <aside className="ui-sidebar">
+    <div className={sidebarCollapsed ? "ui-app is-sidebar-collapsed" : "ui-app"}>
+      <aside className={mobileNavOpen ? "ui-sidebar is-open" : "ui-sidebar"}>
         <div className="ui-brand">
-          <span className="ui-kicker">fintech demo</span>
-          <h1>payments-core</h1>
-          <p>Operational control plane for ledger, webhooks, and reconciliation.</p>
+          <div className="ui-brand-mark"><Database size={18} /></div>
+          <div className="ui-brand-copy">
+            <span className="ui-kicker">fintech demo</span>
+            <h1>payments-core</h1>
+            <p>Ledger, webhooks, and reconciliation control plane.</p>
+          </div>
         </div>
 
         <nav className="ui-nav">
-          {pages.map((item) => (
+          {pages.map((item) => {
+            const Icon = item.icon;
+            return (
             <button
               key={item.key}
               type="button"
               className={route.page === item.key || (item.key === "accounts" && route.page === "account-detail") ? "ui-nav-item active" : "ui-nav-item"}
               onClick={() => navigate(item.path)}
+              title={item.label}
             >
-              {item.label}
+              <Icon size={17} />
+              <span>{item.label}</span>
             </button>
-          ))}
+            );
+          })}
         </nav>
 
         <Card
@@ -263,6 +290,7 @@ export function App() {
         >
           <div className="ui-toolbar">
             <Button variant="ghost" onClick={() => void refreshData("manual")} loading={isManualRefreshing}>
+              <RefreshCw size={15} />
               Refresh data
             </Button>
             <Button variant="secondary" onClick={() => void runSampleTransfer()}>
@@ -284,40 +312,51 @@ export function App() {
       </aside>
 
       <main className="ui-main">
+        <div className="ui-mobile-scrim" onClick={() => setMobileNavOpen(false)} />
         <header className="ui-header">
-          <div>
-            <span className="ui-kicker">Week 4 dashboard</span>
-            <h2>Payments operations console</h2>
-            <p className="ui-subtitle">Live observability and controls for demo flows.</p>
-          </div>
-          <Button variant="ghost" loading={isRefreshing}>
-            {isRefreshing ? "Syncing" : "Live"}
+          <Button variant="ghost" className="ui-mobile-menu" onClick={() => setMobileNavOpen((open) => !open)} aria-label="Toggle navigation">
+            <Menu size={17} />
           </Button>
+          <div>
+            <span className="ui-kicker">payments ops</span>
+            <h2>Payments operations console</h2>
+            <p className="ui-subtitle">Quiet, live visibility across balances, holds, webhooks, and reconciliation.</p>
+          </div>
+          <div className="ui-header__actions">
+            <Button variant="ghost" className="ui-collapse-button" onClick={() => setSidebarCollapsed((collapsed) => !collapsed)} aria-label="Collapse sidebar">
+              {sidebarCollapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
+            </Button>
+            <Button variant="ghost" loading={isRefreshing}>
+              <Activity size={15} />
+              {isRefreshing ? "Syncing" : "Live"}
+            </Button>
+          </div>
         </header>
 
-        {error ? <Notice variant="error">{error}</Notice> : null}
-        {actionMessage ? <Notice variant="success">{actionMessage}</Notice> : null}
+        <div className="ui-toast-region">
+          {error ? <Toast variant="error">{error}</Toast> : null}
+          {actionMessage ? <Toast variant="success">{actionMessage}</Toast> : null}
+        </div>
 
         <section className="ui-grid-4">
-          {[{ label: "Accounts", value: metrics.accounts }, { label: "Transactions", value: metrics.transactions }, { label: "Balanced tx", value: metrics.balancedTransactions }, { label: "Total available", value: metrics.totalAvailable }].map((item) => (
-            <Card key={item.label}>
-              {isLoading ? <Skeleton height={34} /> : null}
-              <div className="ui-stat">
-                <span className="ui-stat__label">{item.label}</span>
-                <strong className="ui-stat__value">{item.value}</strong>
-              </div>
-            </Card>
-          ))}
+          {[
+            { label: "Accounts", value: metrics.accounts, icon: <WalletCards size={16} /> },
+            { label: "Transactions", value: metrics.transactions, icon: <Banknote size={16} /> },
+            { label: "Balanced tx", value: metrics.balancedTransactions, icon: <GitBranch size={16} /> },
+            { label: "Total available", value: metrics.totalAvailable, icon: <Clock3 size={16} /> },
+          ].map((item) => (isLoading ? <Card key={item.label}><Skeleton height={72} /></Card> : <StatCard key={item.label} label={item.label} value={item.value} icon={item.icon} />))}
         </section>
 
-        {route.page === "overview" ? <OverviewPage accounts={accounts} transactions={transactions} stats={demoStats} onResetDemo={resetDemoData} onRunReconciliation={runReconciliation} /> : null}
-        {route.page === "accounts" ? <AccountsPage accounts={accounts} refresh={refreshData} onOpenAccount={(accountId) => navigate(`/accounts/${accountId}`)} /> : null}
-        {route.page === "holds" ? <HoldsPage accounts={accounts} holds={holds} refresh={refreshData} /> : null}
-        {route.page === "webhooks" ? <WebhooksPage accounts={accounts} events={webhookEvents} refresh={refreshData} /> : null}
-        {route.page === "dlq" ? <DlqPage events={dlqEvents} refresh={refreshData} /> : null}
-        {route.page === "reconciliation" ? <ReconciliationPage initialReport={latestReconcile} refresh={refreshData} /> : null}
-        {route.page === "transactions" ? <TransactionsPage transactions={transactions} accounts={accounts} refresh={refreshData} /> : null}
-        {route.page === "account-detail" && route.accountId ? <AccountDetailPage accountId={route.accountId} onBack={() => navigate("/accounts")} /> : null}
+        <div className="ui-page-fade" key={route.page}>
+          {route.page === "overview" ? <OverviewPage accounts={accounts} transactions={transactions} stats={demoStats} onResetDemo={resetDemoData} onRunReconciliation={runReconciliation} /> : null}
+          {route.page === "accounts" ? <AccountsPage accounts={accounts} refresh={refreshData} onOpenAccount={(accountId) => navigate(`/accounts/${accountId}`)} /> : null}
+          {route.page === "holds" ? <HoldsPage accounts={accounts} holds={holds} refresh={refreshData} /> : null}
+          {route.page === "webhooks" ? <WebhooksPage accounts={accounts} events={webhookEvents} refresh={refreshData} /> : null}
+          {route.page === "dlq" ? <DlqPage events={dlqEvents} refresh={refreshData} /> : null}
+          {route.page === "reconciliation" ? <ReconciliationPage initialReport={latestReconcile} refresh={refreshData} /> : null}
+          {route.page === "transactions" ? <TransactionsPage transactions={transactions} accounts={accounts} refresh={refreshData} /> : null}
+          {route.page === "account-detail" && route.accountId ? <AccountDetailPage accountId={route.accountId} onBack={() => navigate("/accounts")} /> : null}
+        </div>
       </main>
     </div>
   );

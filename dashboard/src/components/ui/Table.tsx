@@ -1,3 +1,4 @@
+import { Search } from "lucide-react";
 import type { ReactNode } from "react";
 
 export type TableColumn<T> = {
@@ -15,11 +16,37 @@ type Props<T> = {
   sortKey?: string;
   sortDirection?: "asc" | "desc";
   onSort?: (key: string) => void;
+  searchValue?: string;
+  onSearchChange?: (value: string) => void;
+  searchPlaceholder?: string;
+  actions?: ReactNode;
 };
 
-export function Table<T>({ columns, rows, rowKey, emptyState, sortKey, sortDirection, onSort }: Props<T>) {
+export function EmptyState({ title = "No rows", description }: { title?: ReactNode; description?: ReactNode }) {
   return (
-    <div className="ui-table-wrap">
+    <div className="ui-empty-state">
+      <div className="ui-empty-state__mark" />
+      <strong>{title}</strong>
+      {description ? <p>{description}</p> : null}
+    </div>
+  );
+}
+
+export function Table<T>({ columns, rows, rowKey, emptyState, sortKey, sortDirection, onSort, searchValue, onSearchChange, searchPlaceholder = "Search", actions }: Props<T>) {
+  return (
+    <div className="ui-data-table">
+      {onSearchChange || actions ? (
+        <div className="ui-table-toolbar">
+          {onSearchChange ? (
+            <label className="ui-search-field">
+              <Search size={15} aria-hidden="true" />
+              <input value={searchValue ?? ""} onChange={(event) => onSearchChange(event.target.value)} placeholder={searchPlaceholder} />
+            </label>
+          ) : <span />}
+          {actions ? <div className="ui-table-actions">{actions}</div> : null}
+        </div>
+      ) : null}
+      <div className="ui-table-wrap">
       <table className="ui-table">
         <thead>
           <tr>
@@ -47,7 +74,10 @@ export function Table<T>({ columns, rows, rowKey, emptyState, sortKey, sortDirec
           ))}
         </tbody>
       </table>
-      {rows.length === 0 && emptyState ? <div className="ui-table__empty">{emptyState}</div> : null}
+      {rows.length === 0 && emptyState ? <div className="ui-table__empty">{typeof emptyState === "string" ? <EmptyState title={emptyState} /> : emptyState}</div> : null}
+      </div>
     </div>
   );
 }
+
+export const DataTable = Table;
