@@ -1,10 +1,11 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
 from app.core.db import get_db
+from app.core.guards import require_write_access
 from app.schemas import TransferCreate
 from app.services.transfers import IdempotencyConflictError, TransferConflictError, TransferValidationError, create_transfer
 
@@ -14,9 +15,11 @@ router = APIRouter(prefix="/transfers", tags=["transfers"])
 @router.post("", status_code=201)
 def post_transfer(
     transfer: TransferCreate,
+    request: Request,
     session: Session = Depends(get_db),
     idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
 ):
+    require_write_access(request)
     if not idempotency_key:
         raise HTTPException(status_code=400, detail="Idempotency-Key header is required")
 

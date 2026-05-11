@@ -9,3 +9,7 @@ type Props = PropsWithChildren<{
 export function Notice({ variant = "info", children }: Props) {
   return <div className={`ui-notice ui-notice--${variant}`}>{children}</div>;
 }
+
+export function Toast({ variant = "info", children }: Props) {
+  return <div className={`ui-toast ui-toast--${variant}`}>{children}</div>;
+}

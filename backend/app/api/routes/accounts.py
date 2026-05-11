@@ -2,10 +2,11 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
 from app.core.db import get_db
+from app.core.guards import require_write_access
 from app.schemas import AccountCreate, AccountCreateResponse, AccountDetailOut, AccountOut, AccountStatementOut
 from app.services.accounts import create_account, get_account, get_account_statement, list_accounts
 
@@ -18,7 +19,8 @@ def read_accounts(session: Session = Depends(get_db)):
 
 
 @router.post("", status_code=201, response_model=AccountCreateResponse)
-def post_account(payload: AccountCreate, session: Session = Depends(get_db)):
+def post_account(payload: AccountCreate, request: Request, session: Session = Depends(get_db)):
+    require_write_access(request)
     try:
         return create_account(session, payload)
     except ValueError as error:

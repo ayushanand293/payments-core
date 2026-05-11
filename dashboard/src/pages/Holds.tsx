@@ -13,6 +13,7 @@ import { Card } from "../components/ui/Card";
 import { Input } from "../components/ui/Input";
 import { Modal } from "../components/ui/Modal";
 import { Notice } from "../components/ui/Notice";
+import { PageHeader } from "../components/ui/PageHeader";
 import { Select } from "../components/ui/Select";
 import { Table, type TableColumn } from "../components/ui/Table";
 
@@ -20,6 +21,7 @@ type Props = {
   accounts: AccountSummary[];
   holds: HoldSummary[];
   refresh: () => Promise<void>;
+  readOnly?: boolean;
 };
 
 const formatMinor = new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 });
@@ -28,7 +30,7 @@ function randomKey(prefix: string) {
   return `${prefix}-${Date.now()}-${Math.floor(Math.random() * 1_000_000)}`;
 }
 
-export function HoldsPage({ accounts, holds, refresh }: Props) {
+export function HoldsPage({ accounts, holds, refresh, readOnly = false }: Props) {
   const [accountId, setAccountId] = useState(accounts[0]?.id ?? "");
   const [amountMinor, setAmountMinor] = useState("1000");
   const [ttlSeconds, setTtlSeconds] = useState("900");
@@ -36,9 +38,21 @@ export function HoldsPage({ accounts, holds, refresh }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [loadingId, setLoadingId] = useState<string | null>(null);
   const [pendingAction, setPendingAction] = useState<{ type: "capture" | "release"; hold: HoldSummary } | null>(null);
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("ALL");
 
   const accountMap = useMemo(() => new Map(accounts.map((account) => [account.id, account])), [accounts]);
-  const sortedHolds = useMemo(() => [...holds].sort((a, b) => String(b.created_at).localeCompare(String(a.created_at))), [holds]);
+  const sortedHolds = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    return [...holds]
+      .filter((hold) => {
+        const account = accountMap.get(hold.account_id);
+        const bySearch = !query || hold.id.toLowerCase().includes(query) || hold.status.toLowerCase().includes(query) || Boolean(account?.name.toLowerCase().includes(query));
+        const byStatus = statusFilter === "ALL" || hold.status === statusFilter;
+        return bySearch && byStatus;
+      })
+      .sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
+  }, [accountMap, holds, search, statusFilter]);
 
   useEffect(() => {
     if (accounts.length > 0 && !accountMap.has(accountId)) {
@@ -157,6 +171,9 @@ export function HoldsPage({ accounts, holds, refresh }: Props) {
       header: "Actions",
       render: (hold) => {
         const isActive = hold.status === "AUTHORIZED";
+        if (readOnly) {
+          return <Badge variant="info">Read-only</Badge>;
+        }
         return (
           <div style={{ display: "flex", gap: "var(--space-2)" }}>
             <Button variant="secondary" disabled={!isActive || loadingId === hold.id} onClick={() => setPendingAction({ type: "capture", hold })}>Capture</Button>
@@ -169,24 +186,49 @@ export function HoldsPage({ accounts, holds, refresh }: Props) {
 
   return (
     <section style={{ display: "grid", gap: "var(--space-4)" }}>
-      <Card title="Authorize hold" subtitle="Default TTL is 900 seconds">
-        <form className="ui-form-grid" onSubmit={(event) => void submitAuthorize(event)}>
-          <Select label="Account" value={accountId} onChange={(event) => setAccountId(event.target.value)}>
-            {accounts.map((account) => (
-              <option key={account.id} value={account.id}>{account.name} ({account.currency_code})</option>
-            ))}
-          </Select>
-          <Input label="Amount (minor)" value={amountMinor} onChange={(event) => setAmountMinor(event.target.value)} />
-          <Input label="TTL seconds" value={ttlSeconds} onChange={(event) => setTtlSeconds(event.target.value)} />
-          <Button variant="primary" type="submit">Authorize hold</Button>
-        </form>
-      </Card>
+      <PageHeader
+        eyebrow="holds"
+        title="Funds reservation"
+        description="Authorize, capture, and release holds while escrow movements stay visible."
+      />
+
+      {!readOnly ? (
+        <Card title="Authorize hold" subtitle="Default TTL is 900 seconds">
+          <form className="ui-form-grid" onSubmit={(event) => void submitAuthorize(event)}>
+            <Select label="Account" value={accountId} onChange={(event) => setAccountId(event.target.value)}>
+              {accounts.map((account) => (
+                <option key={account.id} value={account.id}>{account.name} ({account.currency_code})</option>
+              ))}
+            </Select>
+            <Input label="Amount (minor)" value={amountMinor} onChange={(event) => setAmountMinor(event.target.value)} />
+            <Input label="TTL seconds" value={ttlSeconds} onChange={(event) => setTtlSeconds(event.target.value)} />
+            <Button variant="primary" type="submit">Authorize hold</Button>
+          </form>
+        </Card>
+      ) : null}
 
       {error ? <Notice variant="error">{error}</Notice> : null}
       {message ? <Notice variant="success">{message}</Notice> : null}
 
       <Card title="Holds" subtitle="Capture moves funds to escrow. Release frees availability.">
-        <Table columns={columns} rows={sortedHolds} rowKey={(hold) => hold.id} emptyState="No holds yet." />
+        <Table
+          columns={columns}
+          rows={sortedHolds}
+          rowKey={(hold) => hold.id}
+          emptyState="No holds match the current filters."
+          searchValue={search}
+          onSearchChange={setSearch}
+          searchPlaceholder="Search holds"
+          actions={
+            <Select label="Status" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
+              <option value="ALL">All</option>
+              <option value="AUTHORIZED">Authorized</option>
+              <option value="CAPTURED">Captured</option>
+              <option value="RELEASED">Released</option>
+              <option value="EXPIRED">Expired</option>
+            </Select>
+          }
+        />
       </Card>
 
       <Modal

@@ -1,4 +1,5 @@
 import type { PropsWithChildren, ReactNode } from "react";
+import { cn } from "./utils";
 
 type Props = PropsWithChildren<{
   title?: ReactNode;
@@ -9,7 +10,7 @@ type Props = PropsWithChildren<{
 
 export function Card({ title, subtitle, actions, className = "", children }: Props) {
   return (
-    <section className={["ui-card", className].filter(Boolean).join(" ")}>
+    <section className={cn("ui-card", className)}>
       {title || subtitle || actions ? (
         <header className="ui-card__header">
           <div>
@@ -21,5 +22,18 @@ export function Card({ title, subtitle, actions, className = "", children }: Pro
       ) : null}
       {children}
     </section>
+  );
+}
+
+export function StatCard({ label, value, hint, icon }: { label: ReactNode; value: ReactNode; hint?: ReactNode; icon?: ReactNode }) {
+  return (
+    <Card className="ui-stat-card">
+      <div className="ui-stat-card__top">
+        <span className="ui-stat__label">{label}</span>
+        {icon ? <span className="ui-icon-chip">{icon}</span> : null}
+      </div>
+      <strong className="ui-stat__value">{value}</strong>
+      {hint ? <span className="ui-stat__hint">{hint}</span> : null}
+    </Card>
   );
 }

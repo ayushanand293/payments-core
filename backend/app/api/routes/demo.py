@@ -5,6 +5,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
 from app.core.db import get_db
+from app.core.guards import require_write_access
 from app.core.metrics import refresh_runtime_gauges
 from app.schemas import DashboardStatsOut, DemoFundCreate, DemoInjectFailureCreate
 from app.seed import reset_demo_data
@@ -26,6 +27,7 @@ def _require_demo_endpoints_enabled(request: Request) -> None:
 
 def _require_demo_secret(request: Request, demo_secret: str | None) -> None:
     _require_demo_endpoints_enabled(request)
+    require_write_access(request)
     settings = request.app.state.settings
     if not demo_secret or demo_secret != settings.demo_secret:
         raise HTTPException(status_code=401, detail={"code": "UNAUTHORIZED", "message": "Invalid demo secret"})

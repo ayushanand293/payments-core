@@ -6,6 +6,7 @@ import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { Input } from "../components/ui/Input";
 import { Notice } from "../components/ui/Notice";
+import { PageHeader } from "../components/ui/PageHeader";
 import { Select } from "../components/ui/Select";
 import { Table, type TableColumn } from "../components/ui/Table";
 
@@ -13,11 +14,12 @@ type Props = {
   transactions: TransactionSummary[];
   accounts: AccountSummary[];
   refresh: () => Promise<void>;
+  readOnly?: boolean;
 };
 
 const formatMinor = new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 });
 
-export function TransactionsPage({ transactions, accounts, refresh }: Props) {
+export function TransactionsPage({ transactions, accounts, refresh, readOnly = false }: Props) {
   const [selectedTransactionId, setSelectedTransactionId] = useState<string | null>(transactions[0]?.id ?? null);
   const [detail, setDetail] = useState<TransactionDetail | null>(null);
   const [loading, setLoading] = useState(false);
@@ -30,6 +32,7 @@ export function TransactionsPage({ transactions, accounts, refresh }: Props) {
   const [sortKey, setSortKey] = useState<"created_at" | "type" | "status">("created_at");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
   const [submitting, setSubmitting] = useState(false);
+  const [search, setSearch] = useState("");
 
   useEffect(() => {
     if (accounts.length < 2) {
@@ -129,7 +132,10 @@ export function TransactionsPage({ transactions, accounts, refresh }: Props) {
   }
 
   const sortedTransactions = useMemo(() => {
-    const next = [...transactions];
+    const query = search.trim().toLowerCase();
+    const next = transactions.filter((transaction) => {
+      return !query || transaction.id.toLowerCase().includes(query) || transaction.type.toLowerCase().includes(query) || transaction.status.toLowerCase().includes(query) || (transaction.description ?? "").toLowerCase().includes(query);
+    });
     next.sort((a, b) => {
       let delta = 0;
       if (sortKey === "type") delta = a.type.localeCompare(b.type);
@@ -138,7 +144,7 @@ export function TransactionsPage({ transactions, accounts, refresh }: Props) {
       return sortDirection === "asc" ? delta : -delta;
     });
     return next;
-  }, [sortDirection, sortKey, transactions]);
+  }, [search, sortDirection, sortKey, transactions]);
 
   const columns: TableColumn<TransactionSummary>[] = [
     {
@@ -171,29 +177,37 @@ export function TransactionsPage({ transactions, accounts, refresh }: Props) {
 
   return (
     <section style={{ display: "grid", gap: "var(--space-4)" }}>
+      <PageHeader
+        eyebrow="ledger"
+        title="Transactions"
+        description="Create transfers and inspect the ledger entries that keep every transaction balanced."
+      />
+
       {submitMessage ? <Notice variant="success">{submitMessage}</Notice> : null}
 
-      <Card title="Create transfer" subtitle="Post a transaction between any two accounts">
-        <div className="ui-form-grid">
-          <Select label="Source account" value={fromAccountId} onChange={(event) => setFromAccountId(event.target.value)}>
-            <option value="">Select source</option>
-            {accounts.map((account) => (
-              <option key={account.id} value={account.id}>{account.name} ({account.currency_code})</option>
-            ))}
-          </Select>
-          <Select label="Destination account" value={toAccountId} onChange={(event) => setToAccountId(event.target.value)}>
-            <option value="">Select destination</option>
-            {accounts.map((account) => (
-              <option key={account.id} value={account.id}>{account.name} ({account.currency_code})</option>
-            ))}
-          </Select>
-          <Input label="Amount (minor units)" value={amountMinor} onChange={(event) => setAmountMinor(event.target.value)} placeholder="1000" />
-          <Input label="Description" value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Dashboard transfer" />
-          <Button variant="primary" type="button" onClick={() => void submitTransfer()} disabled={accounts.length < 2} loading={submitting}>
-            Post transfer
-          </Button>
-        </div>
-      </Card>
+      {!readOnly ? (
+        <Card title="Create transfer" subtitle="Post a transaction between any two accounts">
+          <div className="ui-form-grid">
+            <Select label="Source account" value={fromAccountId} onChange={(event) => setFromAccountId(event.target.value)}>
+              <option value="">Select source</option>
+              {accounts.map((account) => (
+                <option key={account.id} value={account.id}>{account.name} ({account.currency_code})</option>
+              ))}
+            </Select>
+            <Select label="Destination account" value={toAccountId} onChange={(event) => setToAccountId(event.target.value)}>
+              <option value="">Select destination</option>
+              {accounts.map((account) => (
+                <option key={account.id} value={account.id}>{account.name} ({account.currency_code})</option>
+              ))}
+            </Select>
+            <Input label="Amount (minor units)" value={amountMinor} onChange={(event) => setAmountMinor(event.target.value)} placeholder="1000" />
+            <Input label="Description" value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Dashboard transfer" />
+            <Button variant="primary" type="button" onClick={() => void submitTransfer()} disabled={accounts.length < 2} loading={submitting}>
+              Post transfer
+            </Button>
+          </div>
+        </Card>
+      ) : null}
 
       <div className="ui-grid-2">
         <section>
@@ -206,6 +220,9 @@ export function TransactionsPage({ transactions, accounts, refresh }: Props) {
               onSort={onSort}
               sortKey={sortKey}
               sortDirection={sortDirection}
+              searchValue={search}
+              onSearchChange={setSearch}
+              searchPlaceholder="Search transactions"
             />
           </Card>
         </section>
@@ -225,7 +242,7 @@ export function TransactionsPage({ transactions, accounts, refresh }: Props) {
               </div>
               <div style={{ display: "grid", gap: "var(--space-2)" }}>
                 {detail.ledger_entries.map((entry) => (
-                  <div key={entry.id} style={{ display: "flex", justifyContent: "space-between", border: "1px solid var(--border)", borderRadius: "var(--radius-md)", padding: "var(--space-3)" }}>
+                  <div key={entry.id} className="ui-row-card">
                     <div>
                       <strong>{entry.direction}</strong>
                       <div className="ui-subtitle">{new Date(entry.created_at).toLocaleString()}</div>

@@ -2,6 +2,7 @@ import { ApiError, parseApiError } from "./errors";
 import type {
   AccountStatement,
   AccountSummary,
+  Capabilities,
   CurrencySummary,
   DemoStats,
   DlqEventSummary,
@@ -15,6 +16,7 @@ import type {
 export type {
   AccountStatement,
   AccountSummary,
+  Capabilities,
   CurrencySummary,
   DemoStats,
   DlqEventSummary,
@@ -25,7 +27,7 @@ export type {
   WebhookEventSummary,
 };
 
-const API_BASE = import.meta.env.VITE_API_URL ?? "http://localhost:18000";
+export const API_BASE = import.meta.env.VITE_API_BASE_URL ?? import.meta.env.VITE_API_URL ?? "http://localhost:18000";
 const DEMO_SECRET = import.meta.env.VITE_DEMO_SECRET;
 
 type TransferPayload = {
@@ -81,6 +83,10 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 export async function getAccounts(): Promise<AccountSummary[]> {
   return request<AccountSummary[]>("/accounts");
+}
+
+export async function getCapabilities(): Promise<Capabilities> {
+  return request<Capabilities>("/capabilities");
 }
 
 export async function getCurrencies(): Promise<CurrencySummary[]> {
@@ -209,7 +215,7 @@ export async function postDemoReset(): Promise<{ status: string; message: string
 }
 
 export async function getDemoStats(): Promise<DemoStats> {
-  return request<DemoStats>("/demo/stats");
+  return request<DemoStats>("/stats");
 }
 
 export async function postReconcileRun(): Promise<ReconcileReport> {

@@ -5,6 +5,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
 from app.core.db import get_db
+from app.core.guards import require_write_access
 from app.schemas import WebhookEventOut, WebhookGatewayAcceptedOut, WebhookGatewayIn
 from app.services.webhooks import (
     WebhookValidationError,
@@ -19,6 +20,7 @@ router = APIRouter(prefix="/webhooks", tags=["webhooks"])
 
 @router.post("/gateway", response_model=WebhookGatewayAcceptedOut, status_code=202)
 def post_gateway_webhook(payload: WebhookGatewayIn, request: Request, session: Session = Depends(get_db)):
+    require_write_access(request)
     try:
         result = ingest_webhook_event(session, payload)
     except WebhookValidationError as error:
@@ -54,6 +56,7 @@ def read_webhook_events(session: Session = Depends(get_db)):
 
 @router.post("/events/{event_id}/replay", response_model=WebhookGatewayAcceptedOut, status_code=202)
 def post_webhook_replay(event_id: str, request: Request, session: Session = Depends(get_db)):
+    require_write_access(request)
     try:
         event = replay_webhook_event(session, event_id)
     except WebhookValidationError as error:

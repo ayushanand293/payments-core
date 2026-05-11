@@ -5,6 +5,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
 from app.core.db import get_db
+from app.core.guards import require_write_access
 from app.core.metrics import mark_dlq_replay
 from app.schemas import DlqEventOut, WebhookGatewayAcceptedOut
 from app.services.webhooks import WebhookValidationError, enqueue_webhook_processing, list_dlq_events, replay_webhook_event
@@ -30,6 +31,7 @@ def read_dlq_events(session: Session = Depends(get_db)):
 
 @router.post("/{event_id}/replay", response_model=WebhookGatewayAcceptedOut, status_code=202)
 def post_dlq_replay(event_id: str, request: Request, session: Session = Depends(get_db)):
+    require_write_access(request)
     try:
         event = replay_webhook_event(session, event_id)
     except WebhookValidationError as error:
