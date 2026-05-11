@@ -10,13 +10,14 @@ import { PageHeader } from "../components/ui/PageHeader";
 type Props = {
   initialReport: ReconcileReport | null;
   refresh: () => Promise<void>;
+  readOnly?: boolean;
 };
 
 function formatLabel(key: string): string {
   return key.split("_").join(" ");
 }
 
-export function ReconciliationPage({ initialReport, refresh }: Props) {
+export function ReconciliationPage({ initialReport, refresh, readOnly = false }: Props) {
   const [report, setReport] = useState<ReconcileReport | null>(initialReport);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -73,9 +74,11 @@ export function ReconciliationPage({ initialReport, refresh }: Props) {
         description={report ? `Last run ${new Date(report.ran_at).toLocaleString()}` : "Run reconciliation to persist and inspect ledger health."}
         actions={
           <>
-          <Button variant="primary" type="button" onClick={() => void runNow()} disabled={loading}>
-            Run reconciliation
-          </Button>
+          {!readOnly ? (
+            <Button variant="primary" type="button" onClick={() => void runNow()} disabled={loading}>
+              Run reconciliation
+            </Button>
+          ) : null}
           <Button variant="secondary" type="button" onClick={() => void loadLatest()} disabled={loading}>
             Load latest
           </Button>
@@ -111,7 +114,7 @@ export function ReconciliationPage({ initialReport, refresh }: Props) {
       ) : (
         <Card>
           <strong>No reconciliation runs yet</strong>
-          <p className="ui-subtitle">Run reconciliation to persist and view the latest report.</p>
+          <p className="ui-subtitle">{readOnly ? "No persisted reconciliation report is available yet." : "Run reconciliation to persist and view the latest report."}</p>
         </Card>
       )}
     </section>

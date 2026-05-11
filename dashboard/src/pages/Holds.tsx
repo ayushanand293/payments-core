@@ -21,6 +21,7 @@ type Props = {
   accounts: AccountSummary[];
   holds: HoldSummary[];
   refresh: () => Promise<void>;
+  readOnly?: boolean;
 };
 
 const formatMinor = new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 });
@@ -29,7 +30,7 @@ function randomKey(prefix: string) {
   return `${prefix}-${Date.now()}-${Math.floor(Math.random() * 1_000_000)}`;
 }
 
-export function HoldsPage({ accounts, holds, refresh }: Props) {
+export function HoldsPage({ accounts, holds, refresh, readOnly = false }: Props) {
   const [accountId, setAccountId] = useState(accounts[0]?.id ?? "");
   const [amountMinor, setAmountMinor] = useState("1000");
   const [ttlSeconds, setTtlSeconds] = useState("900");
@@ -170,6 +171,9 @@ export function HoldsPage({ accounts, holds, refresh }: Props) {
       header: "Actions",
       render: (hold) => {
         const isActive = hold.status === "AUTHORIZED";
+        if (readOnly) {
+          return <Badge variant="info">Read-only</Badge>;
+        }
         return (
           <div style={{ display: "flex", gap: "var(--space-2)" }}>
             <Button variant="secondary" disabled={!isActive || loadingId === hold.id} onClick={() => setPendingAction({ type: "capture", hold })}>Capture</Button>
@@ -188,18 +192,20 @@ export function HoldsPage({ accounts, holds, refresh }: Props) {
         description="Authorize, capture, and release holds while escrow movements stay visible."
       />
 
-      <Card title="Authorize hold" subtitle="Default TTL is 900 seconds">
-        <form className="ui-form-grid" onSubmit={(event) => void submitAuthorize(event)}>
-          <Select label="Account" value={accountId} onChange={(event) => setAccountId(event.target.value)}>
-            {accounts.map((account) => (
-              <option key={account.id} value={account.id}>{account.name} ({account.currency_code})</option>
-            ))}
-          </Select>
-          <Input label="Amount (minor)" value={amountMinor} onChange={(event) => setAmountMinor(event.target.value)} />
-          <Input label="TTL seconds" value={ttlSeconds} onChange={(event) => setTtlSeconds(event.target.value)} />
-          <Button variant="primary" type="submit">Authorize hold</Button>
-        </form>
-      </Card>
+      {!readOnly ? (
+        <Card title="Authorize hold" subtitle="Default TTL is 900 seconds">
+          <form className="ui-form-grid" onSubmit={(event) => void submitAuthorize(event)}>
+            <Select label="Account" value={accountId} onChange={(event) => setAccountId(event.target.value)}>
+              {accounts.map((account) => (
+                <option key={account.id} value={account.id}>{account.name} ({account.currency_code})</option>
+              ))}
+            </Select>
+            <Input label="Amount (minor)" value={amountMinor} onChange={(event) => setAmountMinor(event.target.value)} />
+            <Input label="TTL seconds" value={ttlSeconds} onChange={(event) => setTtlSeconds(event.target.value)} />
+            <Button variant="primary" type="submit">Authorize hold</Button>
+          </form>
+        </Card>
+      ) : null}
 
       {error ? <Notice variant="error">{error}</Notice> : null}
       {message ? <Notice variant="success">{message}</Notice> : null}

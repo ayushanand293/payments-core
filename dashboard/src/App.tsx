@@ -17,6 +17,8 @@ import {
 } from "lucide-react";
 import {
   getAccounts,
+  API_BASE,
+  getCapabilities,
   getCurrencies,
   getDemoStats,
   getDlqEvents,
@@ -28,6 +30,7 @@ import {
   postReconcileRun,
   postTransfer,
   type AccountSummary,
+  type Capabilities,
   type CurrencySummary,
   type DemoStats,
   type DlqEventSummary,
@@ -98,6 +101,7 @@ export function App() {
   const [demoStats, setDemoStats] = useState<DemoStats | null>(null);
   const [latestReconcile, setLatestReconcile] = useState<ReconcileReport | null>(null);
   const [currencies, setCurrencies] = useState<CurrencySummary[]>([]);
+  const [capabilities, setCapabilities] = useState<Capabilities | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isManualRefreshing, setIsManualRefreshing] = useState(false);
@@ -113,7 +117,7 @@ export function App() {
       setIsManualRefreshing(true);
     }
     try {
-      const [nextAccounts, nextTransactions, nextCurrencies, nextHolds, nextWebhookEvents, nextDlqEvents, nextDemoStats] = await Promise.all([
+      const [nextAccounts, nextTransactions, nextCurrencies, nextHolds, nextWebhookEvents, nextDlqEvents, nextDemoStats, nextCapabilities] = await Promise.all([
         getAccounts(),
         getTransactions(),
         getCurrencies(),
@@ -121,6 +125,7 @@ export function App() {
         getWebhookEvents(),
         getDlqEvents(),
         getDemoStats(),
+        getCapabilities(),
       ]);
       setAccounts(nextAccounts);
       setTransactions(nextTransactions);
@@ -129,6 +134,7 @@ export function App() {
       setWebhookEvents(nextWebhookEvents);
       setDlqEvents(nextDlqEvents);
       setDemoStats(nextDemoStats);
+      setCapabilities(nextCapabilities);
 
       try {
         const report = await getReconcileLatest();
@@ -206,6 +212,10 @@ export function App() {
   }, [accounts, transactions, currencies]);
 
   async function runSampleTransfer() {
+    if (capabilities?.read_only) {
+      setActionMessage("Public demo is read-only.");
+      return;
+    }
     const source = accounts.find((account) => account.name === "INR Alice Wallet");
     const destination = accounts.find((account) => account.name === "INR Corner Shop");
 
@@ -233,6 +243,10 @@ export function App() {
   }
 
   async function resetDemoData() {
+    if (capabilities?.read_only) {
+      setActionMessage("Public demo is read-only.");
+      return;
+    }
     try {
       await postDemoReset();
       setActionMessage("Demo reset complete.");
@@ -243,6 +257,10 @@ export function App() {
   }
 
   async function runReconciliation() {
+    if (capabilities?.read_only) {
+      setActionMessage("Public demo is read-only.");
+      return;
+    }
     try {
       const report = await postReconcileRun();
       setLatestReconcile(report);
@@ -285,7 +303,7 @@ export function App() {
 
         <Card
           title="Quick actions"
-          subtitle="Safe operator shortcuts"
+          subtitle={capabilities?.read_only ? "Public demo is read-only" : "Safe operator shortcuts"}
           className="ui-card"
         >
           <div className="ui-toolbar">
@@ -293,20 +311,24 @@ export function App() {
               <RefreshCw size={15} />
               Refresh data
             </Button>
-            <Button variant="secondary" onClick={() => void runSampleTransfer()}>
-              Run sample transfer
-            </Button>
-            <Button variant="danger" onClick={() => void resetDemoData()}>
-              Reset demo
-            </Button>
-            <Button variant="primary" onClick={() => void runReconciliation()}>
-              Run reconciliation
-            </Button>
+            {!capabilities?.read_only ? (
+              <>
+                <Button variant="secondary" onClick={() => void runSampleTransfer()}>
+                  Run sample transfer
+                </Button>
+                <Button variant="danger" onClick={() => void resetDemoData()}>
+                  Reset demo
+                </Button>
+                <Button variant="primary" onClick={() => void runReconciliation()}>
+                  Run reconciliation
+                </Button>
+              </>
+            ) : null}
           </div>
         </Card>
 
         <div className="ui-footer">
-          <div>API: {import.meta.env.VITE_API_URL ?? "http://localhost:18000"}</div>
+          <div>API: {API_BASE}</div>
           <div>{lastUpdatedAt ? `Updated ${lastUpdatedAt.toLocaleTimeString()}` : "Waiting for first sync"}</div>
         </div>
       </aside>
@@ -348,14 +370,14 @@ export function App() {
         </section>
 
         <div className="ui-page-fade" key={route.page}>
-          {route.page === "overview" ? <OverviewPage accounts={accounts} transactions={transactions} stats={demoStats} onResetDemo={resetDemoData} onRunReconciliation={runReconciliation} /> : null}
-          {route.page === "accounts" ? <AccountsPage accounts={accounts} refresh={refreshData} onOpenAccount={(accountId) => navigate(`/accounts/${accountId}`)} /> : null}
-          {route.page === "holds" ? <HoldsPage accounts={accounts} holds={holds} refresh={refreshData} /> : null}
-          {route.page === "webhooks" ? <WebhooksPage accounts={accounts} events={webhookEvents} refresh={refreshData} /> : null}
-          {route.page === "dlq" ? <DlqPage events={dlqEvents} refresh={refreshData} /> : null}
-          {route.page === "reconciliation" ? <ReconciliationPage initialReport={latestReconcile} refresh={refreshData} /> : null}
-          {route.page === "transactions" ? <TransactionsPage transactions={transactions} accounts={accounts} refresh={refreshData} /> : null}
-          {route.page === "account-detail" && route.accountId ? <AccountDetailPage accountId={route.accountId} onBack={() => navigate("/accounts")} /> : null}
+          {route.page === "overview" ? <OverviewPage accounts={accounts} transactions={transactions} stats={demoStats} capabilities={capabilities} onResetDemo={resetDemoData} onRunReconciliation={runReconciliation} /> : null}
+          {route.page === "accounts" ? <AccountsPage accounts={accounts} refresh={refreshData} onOpenAccount={(accountId) => navigate(`/accounts/${accountId}`)} readOnly={Boolean(capabilities?.read_only)} /> : null}
+          {route.page === "holds" ? <HoldsPage accounts={accounts} holds={holds} refresh={refreshData} readOnly={Boolean(capabilities?.read_only)} /> : null}
+          {route.page === "webhooks" ? <WebhooksPage accounts={accounts} events={webhookEvents} refresh={refreshData} readOnly={Boolean(capabilities?.read_only)} /> : null}
+          {route.page === "dlq" ? <DlqPage events={dlqEvents} refresh={refreshData} readOnly={Boolean(capabilities?.read_only)} /> : null}
+          {route.page === "reconciliation" ? <ReconciliationPage initialReport={latestReconcile} refresh={refreshData} readOnly={Boolean(capabilities?.read_only)} /> : null}
+          {route.page === "transactions" ? <TransactionsPage transactions={transactions} accounts={accounts} refresh={refreshData} readOnly={Boolean(capabilities?.read_only)} /> : null}
+          {route.page === "account-detail" && route.accountId ? <AccountDetailPage accountId={route.accountId} onBack={() => navigate("/accounts")} readOnly={Boolean(capabilities?.read_only)} /> : null}
         </div>
       </main>
     </div>

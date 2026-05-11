@@ -14,11 +14,12 @@ type Props = {
   transactions: TransactionSummary[];
   accounts: AccountSummary[];
   refresh: () => Promise<void>;
+  readOnly?: boolean;
 };
 
 const formatMinor = new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 });
 
-export function TransactionsPage({ transactions, accounts, refresh }: Props) {
+export function TransactionsPage({ transactions, accounts, refresh, readOnly = false }: Props) {
   const [selectedTransactionId, setSelectedTransactionId] = useState<string | null>(transactions[0]?.id ?? null);
   const [detail, setDetail] = useState<TransactionDetail | null>(null);
   const [loading, setLoading] = useState(false);
@@ -184,27 +185,29 @@ export function TransactionsPage({ transactions, accounts, refresh }: Props) {
 
       {submitMessage ? <Notice variant="success">{submitMessage}</Notice> : null}
 
-      <Card title="Create transfer" subtitle="Post a transaction between any two accounts">
-        <div className="ui-form-grid">
-          <Select label="Source account" value={fromAccountId} onChange={(event) => setFromAccountId(event.target.value)}>
-            <option value="">Select source</option>
-            {accounts.map((account) => (
-              <option key={account.id} value={account.id}>{account.name} ({account.currency_code})</option>
-            ))}
-          </Select>
-          <Select label="Destination account" value={toAccountId} onChange={(event) => setToAccountId(event.target.value)}>
-            <option value="">Select destination</option>
-            {accounts.map((account) => (
-              <option key={account.id} value={account.id}>{account.name} ({account.currency_code})</option>
-            ))}
-          </Select>
-          <Input label="Amount (minor units)" value={amountMinor} onChange={(event) => setAmountMinor(event.target.value)} placeholder="1000" />
-          <Input label="Description" value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Dashboard transfer" />
-          <Button variant="primary" type="button" onClick={() => void submitTransfer()} disabled={accounts.length < 2} loading={submitting}>
-            Post transfer
-          </Button>
-        </div>
-      </Card>
+      {!readOnly ? (
+        <Card title="Create transfer" subtitle="Post a transaction between any two accounts">
+          <div className="ui-form-grid">
+            <Select label="Source account" value={fromAccountId} onChange={(event) => setFromAccountId(event.target.value)}>
+              <option value="">Select source</option>
+              {accounts.map((account) => (
+                <option key={account.id} value={account.id}>{account.name} ({account.currency_code})</option>
+              ))}
+            </Select>
+            <Select label="Destination account" value={toAccountId} onChange={(event) => setToAccountId(event.target.value)}>
+              <option value="">Select destination</option>
+              {accounts.map((account) => (
+                <option key={account.id} value={account.id}>{account.name} ({account.currency_code})</option>
+              ))}
+            </Select>
+            <Input label="Amount (minor units)" value={amountMinor} onChange={(event) => setAmountMinor(event.target.value)} placeholder="1000" />
+            <Input label="Description" value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Dashboard transfer" />
+            <Button variant="primary" type="button" onClick={() => void submitTransfer()} disabled={accounts.length < 2} loading={submitting}>
+              Post transfer
+            </Button>
+          </div>
+        </Card>
+      ) : null}
 
       <div className="ui-grid-2">
         <section>

@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { postDlqReplay, type DlqEventSummary } from "../api/client";
 import { toUserMessage } from "../api/errors";
+import { Badge } from "../components/ui/Badge";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { Notice } from "../components/ui/Notice";
@@ -10,9 +11,10 @@ import { Table, type TableColumn } from "../components/ui/Table";
 type Props = {
   events: DlqEventSummary[];
   refresh: () => Promise<void>;
+  readOnly?: boolean;
 };
 
-export function DlqPage({ events, refresh }: Props) {
+export function DlqPage({ events, refresh, readOnly = false }: Props) {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loadingEventId, setLoadingEventId] = useState<string | null>(null);
@@ -51,9 +53,13 @@ export function DlqPage({ events, refresh }: Props) {
       header: "Actions",
       render: (item) => (
         <div style={{ display: "flex", gap: "var(--space-2)" }}>
-          <Button variant="secondary" disabled={loadingEventId === item.event_id} onClick={() => void replay(item.event_id)}>
-            Replay
-          </Button>
+          {readOnly ? (
+            <Badge variant="info">Read-only</Badge>
+          ) : (
+            <Button variant="secondary" disabled={loadingEventId === item.event_id} onClick={() => void replay(item.event_id)}>
+              Replay
+            </Button>
+          )}
           <a href={`/webhooks?eventId=${encodeURIComponent(item.event_id)}`} style={{ alignSelf: "center", fontSize: 13 }}>
             Open webhook
           </a>

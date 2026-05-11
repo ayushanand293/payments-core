@@ -13,11 +13,12 @@ import { Table, type TableColumn } from "../components/ui/Table";
 type Props = {
   accountId: string;
   onBack: () => void;
+  readOnly?: boolean;
 };
 
 const formatMinor = new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 });
 
-export function AccountDetailPage({ accountId, onBack }: Props) {
+export function AccountDetailPage({ accountId, onBack, readOnly = false }: Props) {
   const [account, setAccount] = useState<AccountSummary | null>(null);
   const [statement, setStatement] = useState<AccountStatement | null>(null);
   const [holds, setHolds] = useState<HoldSummary[]>([]);
@@ -118,7 +119,7 @@ export function AccountDetailPage({ accountId, onBack }: Props) {
           <Card><div className="ui-stat"><span className="ui-stat__label">Available</span><strong className="ui-stat__value">{account ? formatMinor.format(account.available_balance_minor) : "-"}</strong></div></Card>
         </div>
 
-        {account ? (
+        {account && !readOnly ? (
           <div className="ui-form-grid" style={{ marginBottom: "var(--space-3)" }}>
             <Input label="Fund amount (minor)" value={fundAmount} onChange={(event) => setFundAmount(event.target.value)} placeholder="1000" />
             <Button type="button" variant="primary" onClick={() => void runFund()}>

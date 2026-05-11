@@ -14,9 +14,10 @@ type Props = {
   accounts: AccountSummary[];
   refresh: () => Promise<void>;
   onOpenAccount: (accountId: string) => void;
+  readOnly?: boolean;
 };
 
-export function AccountsPage({ accounts, refresh, onOpenAccount }: Props) {
+export function AccountsPage({ accounts, refresh, onOpenAccount, readOnly = false }: Props) {
   const [currencies, setCurrencies] = useState<CurrencySummary[]>([]);
   const [name, setName] = useState("");
   const [currencyCode, setCurrencyCode] = useState("INR");
@@ -140,7 +141,7 @@ export function AccountsPage({ accounts, refresh, onOpenAccount }: Props) {
         eyebrow="accounts"
         title="Accounts"
         description="Search balances, filter by currency, and open account detail routes."
-        actions={<Button variant="primary" onClick={() => setCreateOpen(true)}>Create account</Button>}
+        actions={!readOnly ? <Button variant="primary" onClick={() => setCreateOpen(true)}>Create account</Button> : null}
       />
 
       {error ? <Notice variant="error">{error}</Notice> : null}

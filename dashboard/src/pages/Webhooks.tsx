@@ -22,13 +22,14 @@ type Props = {
   accounts: AccountSummary[];
   events: WebhookEventSummary[];
   refresh: () => Promise<void>;
+  readOnly?: boolean;
 };
 
 function randomEventId() {
   return `evt-${Date.now()}-${Math.floor(Math.random() * 1_000_000)}`;
 }
 
-export function WebhooksPage({ accounts, events, refresh }: Props) {
+export function WebhooksPage({ accounts, events, refresh, readOnly = false }: Props) {
   const [eventId, setEventId] = useState(randomEventId());
   const [accountId, setAccountId] = useState(accounts[0]?.id ?? "");
   const [amountMinor, setAmountMinor] = useState("500");
@@ -155,6 +156,9 @@ export function WebhooksPage({ accounts, events, refresh }: Props) {
       header: "Actions",
       render: (item) => {
         const replayable = item.status === "FAILED" || item.status === "DLQ";
+        if (readOnly) {
+          return <Badge variant="info">Read-only</Badge>;
+        }
         return (
           <div style={{ display: "flex", gap: "var(--space-2)" }}>
             <Button variant="secondary" disabled={!replayable || loadingEventId === item.event_id} onClick={() => void replay(item.event_id)}>
@@ -189,18 +193,20 @@ export function WebhooksPage({ accounts, events, refresh }: Props) {
         description="Ingest, retry, replay, and inspect worker-backed gateway events."
       />
 
-      <Card title="Gateway ingest" subtitle="Creates a demo.fund webhook and queues worker processing.">
-        <form className="ui-form-grid" onSubmit={(event) => void submitGatewayEvent(event)}>
-          <Input label="Event id" value={eventId} onChange={(next) => setEventId(next.target.value)} />
-          <Select label="Account" value={accountId} onChange={(next) => setAccountId(next.target.value)}>
-            {accounts.map((account) => (
-              <option key={account.id} value={account.id}>{account.name} ({account.currency_code})</option>
-            ))}
-          </Select>
-          <Input label="Amount (minor)" value={amountMinor} onChange={(next) => setAmountMinor(next.target.value)} />
-          <Button variant="primary" type="submit">Send webhook</Button>
-        </form>
-      </Card>
+      {!readOnly ? (
+        <Card title="Gateway ingest" subtitle="Creates a demo.fund webhook and queues worker processing.">
+          <form className="ui-form-grid" onSubmit={(event) => void submitGatewayEvent(event)}>
+            <Input label="Event id" value={eventId} onChange={(next) => setEventId(next.target.value)} />
+            <Select label="Account" value={accountId} onChange={(next) => setAccountId(next.target.value)}>
+              {accounts.map((account) => (
+                <option key={account.id} value={account.id}>{account.name} ({account.currency_code})</option>
+              ))}
+            </Select>
+            <Input label="Amount (minor)" value={amountMinor} onChange={(next) => setAmountMinor(next.target.value)} />
+            <Button variant="primary" type="submit">Send webhook</Button>
+          </form>
+        </Card>
+      ) : null}
 
       {error ? <Notice variant="error">{error}</Notice> : null}
       {message ? <Notice variant="success">{message}</Notice> : null}

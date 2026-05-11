@@ -121,3 +121,12 @@ export type DemoStats = {
   last_reconcile_at?: string | null;
   reconcile_runs_total: number;
 };
+
+export type Capabilities = {
+  public_demo: boolean;
+  read_only: boolean;
+  demo_endpoints_enabled: boolean;
+  writes_enabled: boolean;
+  replay_enabled: boolean;
+  reconcile_run_enabled: boolean;
+};

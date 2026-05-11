@@ -1,4 +1,4 @@
-import type { AccountSummary, DemoStats, TransactionSummary } from "../api/client";
+import type { AccountSummary, Capabilities, DemoStats, TransactionSummary } from "../api/client";
 import { Badge } from "../components/ui/Badge";
 import { Button } from "../components/ui/Button";
 import { Card, StatCard } from "../components/ui/Card";
@@ -8,13 +8,14 @@ type Props = {
   accounts: AccountSummary[];
   transactions: TransactionSummary[];
   stats: DemoStats | null;
+  capabilities: Capabilities | null;
   onResetDemo: () => Promise<void>;
   onRunReconciliation: () => Promise<void>;
 };
 
 const currencyFormat = new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 });
 
-export function OverviewPage({ accounts, transactions, stats, onResetDemo, onRunReconciliation }: Props) {
+export function OverviewPage({ accounts, transactions, stats, capabilities, onResetDemo, onRunReconciliation }: Props) {
   const recentTransactions = transactions.slice(0, 5);
   const sampleBalances = accounts.slice(0, 3);
   const processed = stats?.processed_webhooks ?? 0;
@@ -86,7 +87,7 @@ export function OverviewPage({ accounts, transactions, stats, onResetDemo, onRun
             <div><span>Runs</span><strong>{stats?.reconcile_runs_total ?? 0}</strong></div>
             <div><span>Latest</span><strong>{stats?.last_reconcile_at ? "Stored" : "Pending"}</strong></div>
           </div>
-          <Button variant="primary" type="button" onClick={() => void onRunReconciliation()}>Run reconciliation</Button>
+          {!capabilities?.read_only ? <Button variant="primary" type="button" onClick={() => void onRunReconciliation()}>Run reconciliation</Button> : <Badge variant="info">Read-only public demo</Badge>}
         </Card>
 
         <Card className="overview-card" title="Idempotency safety" subtitle="Replay-safe writes and webhook dedupe">
@@ -129,18 +130,24 @@ export function OverviewPage({ accounts, transactions, stats, onResetDemo, onRun
         ))}
       </div>
 
-      <Card className="ui-warning-panel" title="Privileged demo controls" subtitle="Local-only operator shortcuts. Production mode disables /demo/* unless explicitly enabled.">
-        <div className="ui-toolbar">
-          <Button variant="danger" type="button" onClick={() => void onResetDemo()}>
-            Reset demo
-          </Button>
-          <Button variant="primary" type="button" onClick={() => void onRunReconciliation()}>
-            Run reconciliation
-          </Button>
-          <Badge variant="info">Accounts: {accounts.length} · Transactions: {transactions.length}</Badge>
-          <Badge variant="neutral">Smoke: make smoke</Badge>
-        </div>
-      </Card>
+      {!capabilities?.read_only ? (
+        <Card className="ui-warning-panel" title="Privileged demo controls" subtitle="Local-only operator shortcuts. Production mode disables /demo/* unless explicitly enabled.">
+          <div className="ui-toolbar">
+            <Button variant="danger" type="button" onClick={() => void onResetDemo()}>
+              Reset demo
+            </Button>
+            <Button variant="primary" type="button" onClick={() => void onRunReconciliation()}>
+              Run reconciliation
+            </Button>
+            <Badge variant="info">Accounts: {accounts.length} · Transactions: {transactions.length}</Badge>
+            <Badge variant="neutral">Smoke: make smoke</Badge>
+          </div>
+        </Card>
+      ) : (
+        <Card title="Public demo mode" subtitle="This deployment is read-only. Browse live seeded data without mutating the ledger or worker pipeline.">
+          <Badge variant="info">Writes, replay, reset, funding, and reconcile-run controls are hidden.</Badge>
+        </Card>
+      )}
 
       <div className="ui-grid-2">
         <section>
