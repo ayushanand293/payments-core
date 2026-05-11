@@ -98,6 +98,9 @@ make up
 - `make migrate` apply Alembic migrations in backend container
 - `make reset-db` drop Postgres volume and rebuild stack
 - `make seed` call demo reset endpoint
+- `make test` run backend tests
+- `make build-dashboard` build the dashboard
+- `make ci` run backend tests and dashboard build
 - `make smoke` run full end-to-end smoke verification
 
 ## Key API Areas
@@ -184,11 +187,14 @@ Important env vars (see `.env.example`):
 - `PAYMENTS_POSTGRES_PORT`
 - `PAYMENTS_REDIS_PORT`
 - `PAYMENTS_DEMO_SECRET` (used by backend/worker/dashboard in compose)
+- `DEMO_ENDPOINTS_ENABLED` (only needed to opt production into `/demo/*` endpoints)
+- `ENQUEUE_WEBHOOKS` (set `false` for isolated backend tests that drain webhooks manually)
 
 Demo secret notes:
 
 - Local demo: a shared secret is fine.
-- Public deployment: do not rely on browser-exposed shared demo secrets.
+- Public deployment: `/demo/*` endpoints are disabled when `APP_ENV=production` unless `DEMO_ENDPOINTS_ENABLED=true`.
+- Do not rely on browser-exposed shared demo secrets for public admin controls.
 - Prefer server-side auth/authorization for privileged demo/admin actions.
 
 ## Repository Layout
@@ -205,6 +211,7 @@ Demo secret notes:
 
 - Backend tests under `backend/tests/`
 - Reconciliation-specific tests included
+- Local backend suite: `.venv/bin/pytest`
 - Dashboard build checked with `npm run build`
 - Full-stack smoke path available via `make smoke`
 

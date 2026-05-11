@@ -4,6 +4,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes.accounts import router as accounts_router
+from app.api.routes.capabilities import router as capabilities_router
 from app.api.routes.currencies import router as currencies_router
 from app.api.routes.demo import router as demo_router
 from app.api.routes.dlq import router as dlq_router
@@ -18,7 +19,7 @@ from app.core.config import Settings, get_settings
 from app.core.db import create_engine_and_session
 from app.core.logging import configure_logging
 from app.core.metrics import HTTP_REQUESTS, refresh_runtime_gauges
-from app.seed import seed_demo_data
+from app.seed import seed_demo_data, seed_public_demo_data
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -51,11 +52,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.on_event("startup")
     def on_startup() -> None:
         with session_factory() as session:
-            if settings.auto_seed:
+            should_seed_on_empty = settings.app_env.lower() == "production" and settings.auto_seed_on_empty
+            if should_seed_on_empty:
+                seed_public_demo_data(session)
+            elif settings.auto_seed:
                 seed_demo_data(session)
             refresh_runtime_gauges(session)
 
     app.include_router(health_router)
+    app.include_router(capabilities_router)
     app.include_router(accounts_router)
     app.include_router(currencies_router)
     app.include_router(holds_router)

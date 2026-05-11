@@ -152,10 +152,16 @@ def _consume_fail_once(event_id: str) -> bool:
     key = f"webhook:fail-once:{event_id}"
     settings = get_settings()
     client = redis.Redis.from_url(settings.redis_url, decode_responses=True)
-    value = client.get(key)
+    try:
+        value = client.get(key)
+    except redis.RedisError:
+        return False
     if value is None:
         return False
-    client.delete(key)
+    try:
+        client.delete(key)
+    except redis.RedisError:
+        pass
     return True
 
 

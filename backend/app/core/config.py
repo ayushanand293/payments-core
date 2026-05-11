@@ -12,7 +12,11 @@ class Settings(BaseSettings):
     database_url: str = Field(default="postgresql+psycopg://payments:payments@localhost:5432/payments")
     redis_url: str = Field(default="redis://localhost:6379/0")
     demo_secret: str = Field(default="change-me")
+    demo_endpoints_enabled: bool = False
+    public_demo: bool = False
     auto_seed: bool = True
+    auto_seed_on_empty: bool = False
+    enqueue_webhooks: bool = True
     cors_origins: list[str] = Field(default_factory=lambda: ["http://localhost:5173", "http://localhost:5174"])
 
 

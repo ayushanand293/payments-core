@@ -2,11 +2,12 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
 from app.core.db import get_db
+from app.core.guards import require_write_access
 from app.schemas import HoldAuthorizeCreate, HoldCaptureCreate, HoldOut, HoldReleaseCreate
 from app.services.holds import (
     HoldValidationError,
@@ -28,9 +29,11 @@ def read_holds(session: Session = Depends(get_db)):
 @router.post("/authorize", status_code=201)
 def post_hold_authorize(
     payload: HoldAuthorizeCreate,
+    request: Request,
     session: Session = Depends(get_db),
     idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
 ):
+    require_write_access(request)
     if not idempotency_key:
         raise HTTPException(status_code=400, detail={"code": "VALIDATION_ERROR", "message": "Idempotency-Key header is required"})
 
@@ -48,9 +51,11 @@ def post_hold_authorize(
 def post_hold_capture(
     hold_id: UUID,
     payload: HoldCaptureCreate,
+    request: Request,
     session: Session = Depends(get_db),
     idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
 ):
+    require_write_access(request)
     if not idempotency_key:
         raise HTTPException(status_code=400, detail={"code": "VALIDATION_ERROR", "message": "Idempotency-Key header is required"})
 
@@ -68,9 +73,11 @@ def post_hold_capture(
 def post_hold_release(
     hold_id: UUID,
     payload: HoldReleaseCreate,
+    request: Request,
     session: Session = Depends(get_db),
     idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
 ):
+    require_write_access(request)
     if not idempotency_key:
         raise HTTPException(status_code=400, detail={"code": "VALIDATION_ERROR", "message": "Idempotency-Key header is required"})
 

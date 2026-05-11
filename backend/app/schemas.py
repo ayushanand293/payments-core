@@ -179,3 +179,12 @@ class DashboardStatsOut(BaseModel):
     idempotency_replays: int
     last_reconcile_at: datetime | None = None
     reconcile_runs_total: int
+
+
+class CapabilitiesOut(BaseModel):
+    public_demo: bool
+    read_only: bool
+    demo_endpoints_enabled: bool
+    writes_enabled: bool
+    replay_enabled: bool
+    reconcile_run_enabled: bool

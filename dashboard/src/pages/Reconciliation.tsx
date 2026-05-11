@@ -2,20 +2,22 @@ import { useMemo, useState } from "react";
 import { getReconcileLatest, postReconcileRun, type ReconcileReport } from "../api/client";
 import { toUserMessage } from "../api/errors";
 import { Button } from "../components/ui/Button";
-import { Card } from "../components/ui/Card";
+import { Card, StatCard } from "../components/ui/Card";
 import { JsonViewer } from "../components/ui/JsonViewer";
 import { Notice } from "../components/ui/Notice";
+import { PageHeader } from "../components/ui/PageHeader";
 
 type Props = {
   initialReport: ReconcileReport | null;
   refresh: () => Promise<void>;
+  readOnly?: boolean;
 };
 
 function formatLabel(key: string): string {
   return key.split("_").join(" ");
 }
 
-export function ReconciliationPage({ initialReport, refresh }: Props) {
+export function ReconciliationPage({ initialReport, refresh, readOnly = false }: Props) {
   const [report, setReport] = useState<ReconcileReport | null>(initialReport);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -66,16 +68,23 @@ export function ReconciliationPage({ initialReport, refresh }: Props) {
 
   return (
     <section style={{ display: "grid", gap: "var(--space-4)" }}>
-      <Card title="Reconciliation" subtitle={report ? `Last run ${new Date(report.ran_at).toLocaleString()}` : "No run yet"}>
-        <div className="ui-toolbar">
-          <Button variant="primary" type="button" onClick={() => void runNow()} disabled={loading}>
-            Run reconciliation
-          </Button>
+      <PageHeader
+        eyebrow="reconciliation"
+        title="Consistency checks"
+        description={report ? `Last run ${new Date(report.ran_at).toLocaleString()}` : "Run reconciliation to persist and inspect ledger health."}
+        actions={
+          <>
+          {!readOnly ? (
+            <Button variant="primary" type="button" onClick={() => void runNow()} disabled={loading}>
+              Run reconciliation
+            </Button>
+          ) : null}
           <Button variant="secondary" type="button" onClick={() => void loadLatest()} disabled={loading}>
             Load latest
           </Button>
-        </div>
-      </Card>
+          </>
+        }
+      />
 
       {error ? <Notice variant="error">{error}</Notice> : null}
 
@@ -83,19 +92,14 @@ export function ReconciliationPage({ initialReport, refresh }: Props) {
         <>
           <div className="ui-grid-3">
             {summaryEntries.map(([key, value]) => (
-              <Card key={key}>
-                <div className="ui-stat">
-                  <span className="ui-stat__label">{formatLabel(key)}</span>
-                  <strong className="ui-stat__value">{value}</strong>
-                </div>
-              </Card>
+              <StatCard key={key} label={formatLabel(key)} value={value} />
             ))}
           </div>
 
           <Card title="Details" subtitle={`Run id: ${report.run_id}`}>
             <div style={{ display: "grid", gap: "var(--space-3)" }}>
               {detailEntries.map(([key, value]) => (
-                <details key={key} style={{ border: "1px solid var(--border)", borderRadius: "var(--radius-md)", padding: "var(--space-3)" }}>
+                <details key={key} className="ui-details-panel">
                   <summary>{formatLabel(key)} ({value.length})</summary>
                   <div className="ui-toolbar" style={{ margin: "var(--space-2) 0" }}>
                     <Button variant="ghost" onClick={() => void copyDetails(value)}>Copy JSON</Button>
@@ -110,7 +114,7 @@ export function ReconciliationPage({ initialReport, refresh }: Props) {
       ) : (
         <Card>
           <strong>No reconciliation runs yet</strong>
-          <p className="ui-subtitle">Run reconciliation to persist and view the latest report.</p>
+          <p className="ui-subtitle">{readOnly ? "No persisted reconciliation report is available yet." : "Run reconciliation to persist and view the latest report."}</p>
         </Card>
       )}
     </section>

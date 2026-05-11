@@ -203,6 +203,8 @@ Behavior:
 
 Used by the dashboard account detail page to fund demo accounts before holds/capture flows.
 
+Disabled when `APP_ENV=production` unless `DEMO_ENDPOINTS_ENABLED=true`.
+
 Headers:
 
 ```http
@@ -410,6 +412,8 @@ Response (`202`) mirrors `/webhooks/events/{event_id}/replay`.
 
 Injects a one-time worker failure for a specific webhook event.
 
+Disabled when `APP_ENV=production` unless `DEMO_ENDPOINTS_ENABLED=true`.
+
 Headers:
 
 ```http
@@ -436,6 +440,8 @@ Response:
 ## `POST /demo/reset`
 
 Resets local demo data and reseeds currencies, accounts, escrow mapping, and opening balances.
+
+Disabled when `APP_ENV=production` unless `DEMO_ENDPOINTS_ENABLED=true`.
 
 Headers:
 
@@ -503,6 +509,8 @@ Returns the latest persisted reconciliation report.
 ## `GET /demo/stats`
 
 Returns dashboard KPI values for the control center.
+
+Disabled when `APP_ENV=production` unless `DEMO_ENDPOINTS_ENABLED=true`.
 
 Response:
 

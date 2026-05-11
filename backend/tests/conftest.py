@@ -24,6 +24,7 @@ def app(temp_database_url: str):
     settings = Settings(
         database_url=temp_database_url,
         auto_seed=False,
+        enqueue_webhooks=False,
         cors_origins=["http://testserver"],
     )
     application = create_app(settings)
@@ -38,4 +39,3 @@ def app(temp_database_url: str):
 def client(app):
     with TestClient(app) as test_client:
         yield test_client
-
