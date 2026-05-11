@@ -1,11 +1,12 @@
 from __future__ import annotations
 
+import logging
 from datetime import UTC, datetime, timedelta
 from hashlib import sha256
 
 from sqlalchemy import delete, func, select
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
-from sqlalchemy.exc import ProgrammingError
 
 from app.models import (
     Account,
@@ -27,9 +28,18 @@ from app.models import (
     WebhookEventStatus,
 )
 
+logger = logging.getLogger(__name__)
+
 
 def seed_demo_data(session: Session) -> None:
-    if session.execute(select(func.count()).select_from(Currency)).scalar_one():
+    try:
+        has_seed_data = session.execute(select(func.count()).select_from(Currency)).scalar_one()
+    except SQLAlchemyError:
+        session.rollback()
+        logger.warning("Skipping demo seed because database tables are not ready", exc_info=True)
+        return
+
+    if has_seed_data:
         return
 
     session.add_all([Currency(code="INR", minor_unit=2), Currency(code="USD", minor_unit=2), Currency(code="EUR", minor_unit=2)])
@@ -79,17 +89,14 @@ def seed_demo_data(session: Session) -> None:
 
 
 def seed_public_demo_data(session: Session) -> None:
-
     try:
+        has_seed_data = session.execute(select(func.count()).select_from(Currency)).scalar_one()
+    except SQLAlchemyError:
+        session.rollback()
+        logger.warning("Skipping public demo seed because database tables are not ready", exc_info=True)
+        return
 
-        if session.execute(select(func.count()).select_from(Currency)).scalar_one():
-
-            return
-
-    except ProgrammingError:
-
-        # Migrations not applied yet (tables missing). Don't crash startup.
-
+    if has_seed_data:
         return
 
     seed_demo_data(session)

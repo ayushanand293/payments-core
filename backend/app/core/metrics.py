@@ -6,6 +6,7 @@ from datetime import UTC, datetime
 from fastapi import Response
 from prometheus_client import CONTENT_TYPE_LATEST, Counter, Gauge, generate_latest
 from sqlalchemy import func, select
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.models import DlqEvent, Hold, HoldStatus, ReconcileRun, WebhookEvent, WebhookEventStatus
@@ -107,19 +108,28 @@ def sync_derived_counters(session: Session) -> None:
                 elif key == "reconcile_runs_total":
                     RECONCILE_RUNS.inc(delta)
             _DERIVED_COUNTER_SNAPSHOT[key] = latest_value
+    except SQLAlchemyError as error:
+        session.rollback()
+        logger.warning("Skipping derived counter sync because database state is not ready", extra={"error": str(error)}, exc_info=True)
     except Exception as e:
         logger.error("Error in sync_derived_counters", extra={"error": str(e)}, exc_info=True)
 
 
 def refresh_runtime_gauges(session: Session) -> None:
     now = datetime.now(UTC)
-    dlq_size = session.execute(select(func.count()).select_from(DlqEvent)).scalar_one()
-    active_holds = session.execute(
-        select(func.count()).select_from(Hold).where(Hold.status == HoldStatus.AUTHORIZED, Hold.expires_at > now)
-    ).scalar_one()
-    processing = session.execute(
-        select(func.count()).select_from(WebhookEvent).where(WebhookEvent.status == WebhookEventStatus.PROCESSING)
-    ).scalar_one()
+    try:
+        dlq_size = session.execute(select(func.count()).select_from(DlqEvent)).scalar_one()
+        active_holds = session.execute(
+            select(func.count()).select_from(Hold).where(Hold.status == HoldStatus.AUTHORIZED, Hold.expires_at > now)
+        ).scalar_one()
+        processing = session.execute(
+            select(func.count()).select_from(WebhookEvent).where(WebhookEvent.status == WebhookEventStatus.PROCESSING)
+        ).scalar_one()
+    except SQLAlchemyError as error:
+        # If a previous startup query failed (aborted transaction) or tables aren't ready yet, don't crash startup.
+        session.rollback()
+        logger.warning("Skipping runtime gauge refresh because database state is not ready", extra={"error": str(error)}, exc_info=True)
+        return
 
     DLQ_SIZE.set(float(dlq_size or 0))
     ACTIVE_HOLDS.set(float(active_holds or 0))
