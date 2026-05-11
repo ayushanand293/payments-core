@@ -10,6 +10,23 @@ payments-core is a ledger-first payments platform demo that models core PSP beha
 
 The project is designed to feel like a compact internal fintech operations system rather than a toy CRUD app.
 
+## Live Demo
+
+- Dashboard: https://payments-core-1.onrender.com
+- Backend API: https://payments-core-ctv0.onrender.com
+- Health check: https://payments-core-ctv0.onrender.com/health
+- Capabilities: https://payments-core-ctv0.onrender.com/capabilities
+
+The public demo is intentionally read-only: privileged demo, replay, write, and reconciliation-run controls are hidden in the dashboard and blocked by the backend when `PUBLIC_DEMO=true`.
+
+60-second walkthrough:
+
+1. Open the dashboard and start on Overview for the operational snapshot: accounts, transaction count, balanced transactions, holds, webhook/DLQ state, and reconciliation freshness.
+2. Open Accounts, then an account detail page, to show posted, held, and available balances derived from immutable ledger entries.
+3. Open Transactions and click a transaction to show the double-entry debit/credit breakdown and balanced status.
+4. Open Holds to show the authorize/capture/release lifecycle state without exposing mutation controls in public mode.
+5. Open Webhooks, DLQ, and Reconciliation to show reliability and consistency surfaces: processed/DLQ events, replay visibility, persisted reconcile reports, and metrics-backed health.
+
 ## What You Get
 
 ### Core payment primitives

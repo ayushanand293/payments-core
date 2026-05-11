@@ -59,6 +59,17 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 seed_demo_data(session)
             refresh_runtime_gauges(session)
 
+    @app.get("/", tags=["health"])
+    def read_root():
+        return {
+            "service": settings.app_name,
+            "status": "ok",
+            "docs": "/docs",
+            "health": "/health",
+            "capabilities": "/capabilities",
+            "metrics": "/metrics",
+        }
+
     app.include_router(health_router)
     app.include_router(capabilities_router)
     app.include_router(accounts_router)

@@ -20,7 +20,9 @@ This project is designed for a mostly-free hosted setup:
 
 ## Render Web Service
 
-Recommended Render service type: Web Service with the Python runtime.
+Current public backend: `https://payments-core-ctv0.onrender.com`.
+
+Recommended Render service type: Web Service with the Python runtime, or Docker using `backend/Dockerfile`. The Dockerfile calls `./scripts/start_backend.sh`, which waits for Postgres, runs `alembic upgrade head`, then starts uvicorn with Render's `PORT` env var.
 
 - Root directory: `backend`
 - Build command: `pip install -r requirements.txt`
@@ -37,14 +39,14 @@ DEMO_ENDPOINTS_ENABLED=false
 PUBLIC_DEMO=true
 AUTO_SEED=false
 AUTO_SEED_ON_EMPTY=true
-ENQUEUE_WEBHOOKS=true
+ENQUEUE_WEBHOOKS=false
 DEMO_SECRET=replace-with-random-secret
-CORS_ORIGINS=["https://YOUR-STATIC-SITE.onrender.com"]
+CORS_ORIGINS=["https://payments-core-1.onrender.com"]
 ```
 
-Use the Supabase connection string for `DATABASE_URL`. Keep the `postgresql+psycopg://` driver prefix because the backend installs `psycopg`.
+Use the Supabase transaction pooler connection string for `DATABASE_URL`. Keep the `postgresql+psycopg://` driver prefix because the backend installs `psycopg`. The SQLAlchemy engine disables psycopg prepared statements with `connect_args={"prepare_threshold": None}` for transaction-pooler compatibility.
 
-If you do not deploy a worker, the public demo remains usable from seeded data. In that case, set `ENQUEUE_WEBHOOKS=false` to avoid queueing work that will not be processed.
+The current public deployment does not run a worker, so `ENQUEUE_WEBHOOKS=false` keeps the read-only demo from queueing work that will not be processed.
 
 ## Render Background Worker
 
@@ -58,6 +60,8 @@ Use the same `DATABASE_URL`, `REDIS_URL`, `APP_ENV`, `PUBLIC_DEMO`, and `DEMO_EN
 
 ## Render Static Site
 
+Current public dashboard: `https://payments-core-1.onrender.com`.
+
 - Root directory: `dashboard`
 - Build command: `npm ci && npm run build`
 - Publish directory: `dist`
@@ -65,7 +69,7 @@ Use the same `DATABASE_URL`, `REDIS_URL`, `APP_ENV`, `PUBLIC_DEMO`, and `DEMO_EN
 Required environment variables:
 
 ```bash
-VITE_API_BASE_URL=https://YOUR-BACKEND.onrender.com
+VITE_API_BASE_URL=https://payments-core-ctv0.onrender.com
 ```
 
 Do not set `VITE_DEMO_SECRET` for the public deployment. The dashboard hides privileged controls when `/capabilities` reports read-only mode.
@@ -87,8 +91,8 @@ AUTO_SEED_ON_EMPTY=true
 
 ## Verify
 
-1. Open `https://YOUR-BACKEND.onrender.com/health` and expect `{"status":"ok"}`.
-2. Open `https://YOUR-BACKEND.onrender.com/capabilities` and confirm `read_only` is `true`.
+1. Open `https://payments-core-ctv0.onrender.com/health` and expect `{"status":"ok"}`.
+2. Open `https://payments-core-ctv0.onrender.com/capabilities` and confirm `read_only` is `true`.
 3. Open the Render Static Site and confirm Overview, Accounts, Transactions, Holds, Webhooks, DLQ, and Reconciliation load.
 4. Confirm no reset/fund/inject/replay/run-reconcile buttons are visible in the public dashboard.
 5. Confirm browser devtools show calls only to the backend URL in `VITE_API_BASE_URL`.
