@@ -16,7 +16,7 @@ def create_engine_and_session(database_url: str):
         database_url,
         future=True,
         pool_pre_ping=True,
-        connect_args={"prepare_threshold": 0},  # disable psycopg3 prepared statements (PgBouncer transaction pooler safe)
+        connect_args={"prepare_threshold": None},  # disable psycopg3 prepared statements (PgBouncer transaction pooler safe)
     )
     session_factory = sessionmaker(bind=engine, class_=Session, autoflush=False, expire_on_commit=False)
     return engine, session_factory
